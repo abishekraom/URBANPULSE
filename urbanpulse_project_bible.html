@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>UrbanPulse — Project Bible</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0e1117;
+  --surface:#141820;
+  --surface2:#1a2030;
+  --border:#232a38;
+  --border2:#2e3a50;
+  --text:#dde3f0;
+  --muted:#5a6880;
+  --dim:#3a4560;
+  --red:#e05252;
+  --amber:#e8a835;
+  --green:#3ecf8e;
+  --blue:#4a9eff;
+  --purple:#9b6dff;
+  --cyan:#38d9d9;
+  --red-glow:rgba(224,82,82,0.12);
+  --amber-glow:rgba(232,168,53,0.12);
+  --green-glow:rgba(62,207,142,0.12);
+  --blue-glow:rgba(74,158,255,0.12);
+}
+
+html{scroll-behavior:smooth;}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Lora',serif;
+  font-weight:400;
+  line-height:1.7;
+  overflow-x:hidden;
+}
+
+/* ── COVER ── */
+.cover{
+  min-height:100vh;
+  display:flex;flex-direction:column;justify-content:center;
+  padding:80px 64px;
+  position:relative;
+  overflow:hidden;
+  border-bottom:1px solid var(--border);
+}
+
+.cover-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(var(--border) 1px,transparent 1px),
+    linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:48px 48px;
+  opacity:0.3;
+}
+
+.cover-glow{
+  position:absolute;
+  width:600px;height:600px;
+  background:radial-gradient(circle,rgba(74,158,255,0.08) 0%,transparent 70%);
+  top:-100px;right:-100px;
+  pointer-events:none;
+}
+
+.cover-content{position:relative;z-index:1;max-width:900px;}
+
+.doc-type{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;letter-spacing:4px;text-transform:uppercase;
+  color:var(--blue);margin-bottom:28px;
+  display:flex;align-items:center;gap:12px;
+}
+.doc-type::before{
+  content:'';width:40px;height:1px;background:var(--blue);
+}
+
+h1.cover-title{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(64px,10vw,120px);
+  line-height:0.92;letter-spacing:2px;
+  color:#fff;margin-bottom:8px;
+}
+h1.cover-title span{color:var(--blue);}
+
+.cover-sub{
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;color:var(--muted);
+  letter-spacing:1px;margin-bottom:40px;
+}
+
+.cover-chips{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:48px;}
+.chip{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
+  padding:6px 14px;border:1px solid var(--border2);
+  color:var(--muted);border-radius:2px;
+}
+.chip-accent{border-color:var(--blue);color:var(--blue);}
+
+.toc{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:1px;background:var(--border);
+  border:1px solid var(--border);
+  margin-top:0;
+}
+.toc-item{
+  background:var(--surface);
+  padding:14px 18px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;letter-spacing:1px;
+  color:var(--muted);
+  text-decoration:none;
+  transition:background 0.15s,color 0.15s;
+  display:flex;align-items:center;gap:10px;
+}
+.toc-item:hover{background:var(--surface2);color:var(--text);}
+.toc-num{color:var(--dim);font-size:9px;}
+
+/* ── SECTIONS ── */
+section{
+  padding:72px 64px;
+  border-bottom:1px solid var(--border);
+  position:relative;
+}
+
+.section-eyebrow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:4px;text-transform:uppercase;
+  color:var(--accent-color, var(--blue));
+  margin-bottom:16px;
+  display:flex;align-items:center;gap:12px;
+}
+.section-eyebrow::after{
+  content:'';flex:1;max-width:60px;height:1px;
+  background:var(--accent-color, var(--blue));opacity:0.4;
+}
+
+h2{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(32px,5vw,52px);
+  letter-spacing:1.5px;color:#fff;
+  margin-bottom:32px;line-height:1;
+}
+
+h3{
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;font-weight:500;letter-spacing:1px;
+  text-transform:uppercase;color:var(--accent-color,var(--blue));
+  margin-bottom:12px;margin-top:32px;
+}
+h3:first-child{margin-top:0;}
+
+p{font-size:15px;line-height:1.8;color:#aab4cc;margin-bottom:16px;}
+p:last-child{margin-bottom:0;}
+
+/* ── HIGHLIGHT BOX ── */
+.hbox{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-left:3px solid var(--accent-color,var(--blue));
+  padding:20px 24px;
+  margin:24px 0;
+  font-size:14.5px;line-height:1.75;color:#8a99b8;
+}
+.hbox strong{color:var(--text);font-weight:600;}
+
+/* ── INNOVATION CARDS ── */
+.inno-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:1px;background:var(--border);
+  border:1px solid var(--border);
+  margin-top:8px;
+}
+.inno-card{
+  background:var(--surface);
+  padding:24px 26px;
+  transition:background 0.2s;
+}
+.inno-card:hover{background:var(--surface2);}
+.inno-icon{
+  font-size:22px;margin-bottom:14px;
+}
+.inno-title{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--accent-color,var(--blue));margin-bottom:8px;
+}
+.inno-desc{font-size:13.5px;line-height:1.7;color:#7a8aaa;}
+
+/* ── ARCHITECTURE ── */
+.arch-flow{
+  display:flex;flex-direction:column;gap:1px;
+  background:var(--border);border:1px solid var(--border);
+  margin:24px 0;
+}
+.arch-layer{
+  background:var(--surface);
+  padding:18px 26px;
+  display:grid;grid-template-columns:160px 1fr;
+  gap:20px;align-items:start;
+}
+.arch-label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--accent-color,var(--blue));
+  padding-top:2px;
+}
+.arch-content{font-size:13.5px;line-height:1.7;color:#8090b0;}
+
+/* ── TEAM CARDS ── */
+.team-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);
+  gap:16px;margin-top:8px;
+}
+@media(max-width:700px){.team-grid{grid-template-columns:1fr;}}
+
+.member-card{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-top:3px solid var(--m-color);
+  padding:24px 26px;
+}
+.member-role{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:3px;text-transform:uppercase;
+  color:var(--m-color);margin-bottom:6px;
+}
+.member-title{
+  font-size:17px;font-weight:600;color:#fff;
+  margin-bottom:16px;letter-spacing:-0.3px;
+}
+.task-list{
+  list-style:none;display:flex;flex-direction:column;gap:8px;
+}
+.task-list li{
+  font-size:13px;line-height:1.6;color:#7a8aaa;
+  padding-left:16px;position:relative;
+}
+.task-list li::before{
+  content:'→';position:absolute;left:0;
+  color:var(--m-color);font-size:11px;top:2px;
+}
+.phase-badge{
+  display:inline-block;
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:1px;
+  padding:2px 8px;border-radius:1px;
+  background:rgba(255,255,255,0.05);
+  color:var(--muted);margin-top:4px;
+}
+
+.m1{--m-color:var(--blue);}
+.m2{--m-color:var(--green);}
+.m3{--m-color:var(--amber);}
+.m4{--m-color:var(--purple);}
+
+/* ── BOM TABLE ── */
+.bom-table{
+  width:100%;border-collapse:collapse;
+  font-size:13px;margin-top:16px;
+}
+.bom-table thead tr{
+  background:var(--surface2);
+}
+.bom-table th{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--muted);padding:12px 16px;
+  text-align:left;border-bottom:2px solid var(--border2);
+  white-space:nowrap;
+}
+.bom-table td{
+  padding:11px 16px;border-bottom:1px solid var(--border);
+  color:#8090b0;vertical-align:top;line-height:1.5;
+}
+.bom-table tr:last-child td{border-bottom:none;}
+.bom-table td:first-child{color:var(--text);font-weight:500;}
+.bom-table td.price{
+  font-family:'JetBrains Mono',monospace;
+  color:var(--green);font-size:12px;white-space:nowrap;
+}
+.bom-table td.qty{
+  font-family:'JetBrains Mono',monospace;
+  color:var(--muted);font-size:12px;
+}
+.bom-cat{
+  background:var(--surface2)!important;
+}
+.bom-cat td{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px!important;letter-spacing:2px;text-transform:uppercase;
+  color:var(--accent-color,var(--blue))!important;
+  padding:8px 16px!important;
+  border-bottom:1px solid var(--border2)!important;
+}
+.total-row td{
+  font-weight:600;color:var(--text)!important;
+  border-top:2px solid var(--border2)!important;
+  font-size:14px!important;
+}
+.total-row td.price{color:var(--amber)!important;font-size:15px!important;}
+
+/* ── TIMELINE ── */
+.timeline{display:flex;flex-direction:column;gap:0;margin-top:8px;}
+.tl-item{
+  display:grid;grid-template-columns:140px 24px 1fr;
+  gap:0 20px;
+  padding-bottom:0;
+}
+.tl-week{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--muted);padding-top:18px;text-align:right;
+}
+.tl-spine{
+  display:flex;flex-direction:column;align-items:center;
+}
+.tl-dot{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--accent-color,var(--blue));
+  margin-top:22px;flex-shrink:0;
+  box-shadow:0 0 8px var(--accent-color,var(--blue));
+}
+.tl-line{
+  width:1px;flex:1;
+  background:var(--border2);
+  min-height:20px;
+}
+.tl-body{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-left:2px solid var(--accent-color,var(--blue));
+  padding:14px 18px;
+  margin:12px 0 12px;
+}
+.tl-phase{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--accent-color,var(--blue));margin-bottom:4px;
+}
+.tl-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;}
+.tl-tasks{font-size:12.5px;color:#6a7a9a;line-height:1.65;}
+
+/* ── DEMO SCRIPT ── */
+.demo-steps{
+  display:flex;flex-direction:column;gap:1px;
+  background:var(--border);border:1px solid var(--border);
+  margin-top:16px;
+  counter-reset:demo-counter;
+}
+.demo-step{
+  background:var(--surface);
+  padding:18px 24px;
+  display:grid;grid-template-columns:32px 1fr;
+  gap:16px;align-items:start;
+  counter-increment:demo-counter;
+  transition:background 0.15s;
+}
+.demo-step:hover{background:var(--surface2);}
+.demo-step-num{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:22px;color:var(--dim);
+  line-height:1;padding-top:2px;
+}
+.demo-step-content{}
+.demo-step-title{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;letter-spacing:1px;text-transform:uppercase;
+  color:var(--accent-color,var(--green));margin-bottom:5px;
+}
+.demo-step-desc{font-size:13.5px;color:#7a8aaa;line-height:1.65;}
+
+/* ── RESEARCH PAPER ── */
+.paper-box{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  padding:28px 32px;
+  margin-top:16px;
+}
+.paper-field{
+  display:grid;grid-template-columns:160px 1fr;
+  gap:12px;padding:10px 0;
+  border-bottom:1px solid var(--border);
+  font-size:13.5px;
+}
+.paper-field:last-child{border-bottom:none;}
+.paper-key{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--muted);padding-top:2px;
+}
+.paper-val{color:#8090b0;line-height:1.6;}
+
+/* ── SIGNAL BOX (summary callouts) ── */
+.signal{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:1px;background:var(--border);
+  border:1px solid var(--border);
+  margin:24px 0;
+}
+.signal-item{
+  background:var(--surface);
+  padding:20px 22px;
+  text-align:center;
+}
+.signal-val{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:38px;letter-spacing:1px;
+  color:var(--accent-color,var(--blue));
+  line-height:1;margin-bottom:6px;
+}
+.signal-label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--muted);
+}
+
+@media(max-width:700px){
+  .cover,.section{padding:40px 24px;}
+  section{padding:48px 24px;}
+  .arch-layer{grid-template-columns:1fr;}
+  .paper-field{grid-template-columns:1fr;}
+  .tl-item{grid-template-columns:80px 20px 1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ COVER ══════════ -->
+<div class="cover">
+  <div class="cover-grid"></div>
+  <div class="cover-glow"></div>
+  <div class="cover-content">
+    <div class="doc-type">Project Bible · EL Activity</div>
+    <h1 class="cover-title">Urban<span>Pulse</span></h1>
+    <p class="cover-sub">Structural Health Monitoring for Urban Infrastructure — Complete Project Document</p>
+    <div class="cover-chips">
+      <div class="chip chip-accent">ESP32 WiFi Mesh</div>
+      <div class="chip chip-accent">MPU-6050 + Piezo</div>
+      <div class="chip chip-accent">FFT + LSTM Anomaly</div>
+      <div class="chip chip-accent">React Dashboard</div>
+      <div class="chip">2× CSE-AIML + 2× ECE</div>
+      <div class="chip">Budget: ₹4,800 – ₹5,600</div>
+      <div class="chip">Tabletop Steel Frame Demo</div>
+    </div>
+    <div class="toc">
+      <a href="#overview" class="toc-item"><span class="toc-num">01</span> Overview & Problem</a>
+      <a href="#objectives" class="toc-item"><span class="toc-num">02</span> Objectives</a>
+      <a href="#innovation" class="toc-item"><span class="toc-num">03</span> Innovation</a>
+      <a href="#architecture" class="toc-item"><span class="toc-num">04</span> System Architecture</a>
+      <a href="#team" class="toc-item"><span class="toc-num">05</span> Team & Work Split</a>
+      <a href="#bom" class="toc-item"><span class="toc-num">06</span> Bill of Materials</a>
+      <a href="#timeline" class="toc-item"><span class="toc-num">07</span> Timeline</a>
+      <a href="#demo" class="toc-item"><span class="toc-num">08</span> Demo Script</a>
+      <a href="#paper" class="toc-item"><span class="toc-num">09</span> Research Paper</a>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 01 OVERVIEW ══════════ -->
+<section id="overview" style="--accent-color:var(--blue)">
+  <div class="section-eyebrow">01 — Overview & Problem Statement</div>
+  <h2>What Are We Solving?</h2>
+
+  <p>Urban infrastructure — bridges, flyovers, building columns, retaining walls, and elevated transit structures — degrades invisibly. Material fatigue, micro-cracking, and joint loosening progress silently over months and years, long before any surface-level visual symptom appears. By the time a crack is visible, the structural damage is already severe.</p>
+
+  <p>Currently, cities rely on <strong style="color:var(--text)">periodic manual inspection</strong> — an inspector walks the structure, looks at it, and files a report. In India, this happens once every 2–5 years for most civic infrastructure. There is no real-time, continuous, or affordable monitoring system deployed at scale in any Indian city.</p>
+
+  <div class="hbox">
+    <strong>The core insight:</strong> Structural failure has a distinct acoustic and vibrational signature. A healthy steel beam resonates at a predictable frequency under load. A beam with micro-cracks or loose joints resonates differently — the frequency shifts, harmonics appear, and damping characteristics change. This is measurable with a ₹200 sensor. Nobody is measuring it.
+  </div>
+
+  <div class="signal" style="--accent-color:var(--red)">
+    <div class="signal-item"><div class="signal-val">72%</div><div class="signal-label">Bridge failures preceded by detectable vibration anomalies</div></div>
+    <div class="signal-item"><div class="signal-val">2–5yr</div><div class="signal-label">Average inspection interval for urban infrastructure in India</div></div>
+    <div class="signal-item"><div class="signal-val">₹0</div><div class="signal-label">Real-time structural sensor data available to most municipalities</div></div>
+    <div class="signal-item"><div class="signal-val">24/7</div><div class="signal-label">What UrbanPulse monitors, continuously, at low cost</div></div>
+  </div>
+
+  <h3>Urban Development Relevance</h3>
+  <p>As Indian cities expand rapidly — new flyovers, metro pillars, pedestrian bridges, elevated roads — the volume of infrastructure to monitor grows faster than inspection capacity. UrbanPulse is not a research curiosity; it is the missing layer of the smart city stack. Every smart city initiative currently has traffic sensors, air quality sensors, and waste sensors. None have structural health sensors. This is the gap.</p>
+</section>
+
+<!-- ══════════ 02 OBJECTIVES ══════════ -->
+<section id="objectives" style="--accent-color:var(--cyan)">
+  <div class="section-eyebrow">02 — Objectives</div>
+  <h2>What We Are Building</h2>
+
+  <h3>Primary Objective</h3>
+  <p>Design, build, and demonstrate a low-cost, wireless, multi-node Structural Health Monitoring (SHM) system that detects anomalous vibration signatures in structural members using a combination of MEMS accelerometers and piezoelectric sensors, processes data via FFT and ML anomaly detection, and presents real-time health indices on a web dashboard.</p>
+
+  <h3>Secondary Objectives</h3>
+  <div class="hbox">
+    <strong>1. Multi-node wireless mesh:</strong> At least 3 ESP32 sensor nodes communicating over WiFi mesh (ESP-NOW protocol), each independently sampling and transmitting structural data without a central wired hub.<br/><br/>
+    <strong>2. FFT-based frequency analysis:</strong> Each node performs on-device Fast Fourier Transform to extract dominant frequency components and detect resonance shifts in real time.<br/><br/>
+    <strong>3. ML anomaly detection:</strong> A backend model (Isolation Forest for rapid prototyping, upgradeable to LSTM autoencoder for paper) flags statistically anomalous vibration events with severity classification: Normal → Warning → Critical.<br/><br/>
+    <strong>4. Physical tabletop prototype:</strong> A steel frame structure (simulating a bridge truss or building column) with sensor nodes clamped at key structural points, demonstrable under induced stress during presentation.<br/><br/>
+    <strong>5. Real-time web dashboard:</strong> A React frontend showing per-node health scores, live FFT waveforms, alert history, and a structural map of the demo model — accessible from any device on the same network.<br/><br/>
+    <strong>6. Alert system:</strong> Automatic buzzer + LED alert on the physical prototype when a Critical event is detected, plus a web notification push.
+  </div>
+
+  <h3>Stretch Objectives (if time permits)</h3>
+  <p>Battery + solar power for each node making them fully wireless and self-sustaining. LSTM autoencoder replacing Isolation Forest for the paper. Historical trend visualisation showing structural degradation over weeks of data collection.</p>
+</section>
+
+<!-- ══════════ 03 INNOVATION ══════════ -->
+<section id="innovation" style="--accent-color:var(--amber)">
+  <div class="section-eyebrow">03 — Innovation & Differentiation</div>
+  <h2>What Makes This New?</h2>
+
+  <div class="inno-grid" style="--accent-color:var(--amber)">
+    <div class="inno-card">
+      <div class="inno-icon">📡</div>
+      <div class="inno-title">Sensor Fusion SHM</div>
+      <div class="inno-desc">Combining MEMS accelerometer (low-frequency structural sway) with piezoelectric sensor (high-frequency stress waves / acoustic emission) gives a full-spectrum vibration profile. Neither sensor alone is sufficient — the fusion is the novelty.</div>
+    </div>
+    <div class="inno-card">
+      <div class="inno-icon">⚡</div>
+      <div class="inno-title">On-Device FFT</div>
+      <div class="inno-desc">FFT runs on the ESP32 itself before transmission, not on a server. This means only frequency-domain features (not raw 10kHz sample streams) travel over WiFi — reducing bandwidth by ~98% and making the system scalable to hundreds of nodes.</div>
+    </div>
+    <div class="inno-card">
+      <div class="inno-icon">🧠</div>
+      <div class="inno-title">Unsupervised Anomaly ML</div>
+      <div class="inno-desc">No labelled failure dataset exists for most structures. The Isolation Forest model trains on healthy baseline data collected in the first week, then flags deviations — making the system deployable on any structure without prior failure history.</div>
+    </div>
+    <div class="inno-card">
+      <div class="inno-icon">🔗</div>
+      <div class="inno-title">ESP-NOW Mesh (No Router)</div>
+      <div class="inno-desc">Nodes communicate peer-to-peer via ESP-NOW — no WiFi router or internet required at the structure. A single gateway node then pushes to the cloud. This makes deployment on remote bridges or infrastructure in low-connectivity areas viable.</div>
+    </div>
+    <div class="inno-card">
+      <div class="inno-icon">💰</div>
+      <div class="inno-title">₹500/node Cost Point</div>
+      <div class="inno-desc">Existing commercial SHM systems (from companies like Trimble or National Instruments) cost ₹50,000–₹5,00,000 per sensor point. UrbanPulse targets ₹500 per node — a 100× cost reduction that makes city-scale deployment economically feasible.</div>
+    </div>
+    <div class="inno-card">
+      <div class="inno-icon">🏙️</div>
+      <div class="inno-title">Urban Development Gap</div>
+      <div class="inno-desc">Smart city sensor deployments globally include air, traffic, waste, and water. Structural health monitoring at the urban scale does not exist in any Indian smart city deployment today. This is a first-mover position, not an incremental improvement.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ 04 ARCHITECTURE ══════════ -->
+<section id="architecture" style="--accent-color:var(--green)">
+  <div class="section-eyebrow">04 — System Architecture</div>
+  <h2>How It All Works</h2>
+
+  <h3>Full Pipeline — Layer by Layer</h3>
+  <div class="arch-flow" style="--accent-color:var(--green)">
+    <div class="arch-layer">
+      <div class="arch-label">Layer 1<br/>Physical Sensing</div>
+      <div class="arch-content">MPU-6050 (I²C) samples 3-axis acceleration at 1kHz. Piezoelectric disc (analog) samples acoustic emission at up to 10kHz via ESP32 ADC. Both run simultaneously per node. Nodes are clamped/epoxied to structural members at joints, midspan, and support points — the highest-stress locations based on structural mechanics.</div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-label">Layer 2<br/>Edge Processing</div>
+      <div class="arch-content">On-device FFT (Arduino FFT library or esp-dsp) converts 512-sample windows into frequency spectra every 500ms. Dominant frequency, peak amplitude, and spectral centroid are extracted per window. Raw samples are discarded. Only these 3 features per window per sensor are transmitted — lightweight and fast.</div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-label">Layer 3<br/>Wireless Mesh</div>
+      <div class="arch-content">ESP-NOW peer-to-peer protocol. Nodes 2 and 3 transmit to Node 1 (gateway) directly — no router needed at the structure. Node 1 (gateway) has dual-role: ESP-NOW receiver from peers + WiFi client to local network / MQTT broker. Latency under 50ms node-to-gateway.</div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-label">Layer 4<br/>Backend + ML</div>
+      <div class="arch-content">Python Flask / Node.js backend receives MQTT messages, stores time-series in SQLite (demo) or InfluxDB (production). Isolation Forest model trains on first 1000 healthy readings per node. Subsequent readings are scored — anomaly score above threshold triggers a Warning or Critical event. Events logged with timestamp and node ID.</div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-label">Layer 5<br/>Dashboard</div>
+      <div class="arch-content">React frontend with Chart.js / Recharts for live FFT waveform visualization per node, health score gauge (0–100), alert timeline, and a 2D structural map of the demo frame showing which nodes are in which state (green/amber/red). WebSocket connection for <1s update latency.</div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-label">Layer 6<br/>Physical Alert</div>
+      <div class="arch-content">When backend pushes a Critical event via MQTT back to gateway node, ESP32 GPIO triggers: red LED strip on the physical prototype illuminates, buzzer sounds 3 short pulses. This closes the loop — the physical model responds to its own health data. This is the demo moment.</div>
+    </div>
+  </div>
+
+  <h3>Physical Prototype Design</h3>
+  <div class="hbox">
+    <strong>Frame:</strong> A 60cm × 40cm steel angle iron or flat bar frame, welded or bolted, simulating a simple bridge truss or building column section. Available from any hardware shop for ~₹200–300.<br/><br/>
+    <strong>Node placement:</strong> Node A at the left support joint. Node B at midspan (highest bending stress). Node C at the right support joint. Each node is a small PCB/breadboard box with MPU-6050, piezo disc, ESP32, and a 3.7V LiPo cell, fixed with a strong magnet or M4 bolt clamp.<br/><br/>
+    <strong>Stress induction for demo:</strong> A small weight (500g) hung from midspan, or a gentle tap with a rubber mallet. This induces a measurable vibration event that the system detects within 1–2 seconds on the dashboard.<br/><br/>
+    <strong>Damage simulation:</strong> Pre-loosen one bolt at a joint before the demo. The frequency shift from the loose joint is detectable by the system. This is your "cracked bridge" simulation — elegant, realistic, and physically demonstrable.
+  </div>
+</section>
+
+<!-- ══════════ 05 TEAM ══════════ -->
+<section id="team" style="--accent-color:var(--purple)">
+  <div class="section-eyebrow">05 — Team Work Split</div>
+  <h2>Who Does What</h2>
+
+  <div class="team-grid">
+
+    <div class="member-card m1">
+      <div class="member-role">ECE Member 1</div>
+      <div class="member-title">Hardware Lead — Sensor Nodes</div>
+      <ul class="task-list">
+        <li>MPU-6050 wiring, calibration, and I²C configuration on ESP32</li>
+        <li>Piezoelectric disc conditioning circuit (charge amplifier / voltage divider)</li>
+        <li>Breadboard → perfboard/PCB assembly for all 3 nodes</li>
+        <li>Node enclosure design and structural clamping mechanism</li>
+        <li>LiPo battery integration and charging circuit (TP4056)</li>
+        <li>Physical steel frame fabrication and sensor mounting</li>
+        <li>Hardware testing: verify sensor output under tap, load, and loose-joint conditions</li>
+      </ul>
+      <span class="phase-badge">Phase 1–3 heavy · Phase 4 support</span>
+    </div>
+
+    <div class="member-card m2">
+      <div class="member-role">ECE Member 2</div>
+      <div class="member-title">Firmware & Comms Lead</div>
+      <ul class="task-list">
+        <li>ESP32 Arduino firmware: MPU-6050 driver, ADC sampling loop</li>
+        <li>On-device FFT implementation (esp-dsp or arduinoFFT library)</li>
+        <li>ESP-NOW mesh protocol: peer discovery, data packet structure, gateway routing</li>
+        <li>MQTT client on gateway node (PubSubClient library)</li>
+        <li>GPIO alert output: LED strip and buzzer trigger logic</li>
+        <li>Power optimization: light-sleep between sample windows</li>
+        <li>Firmware OTA update mechanism for demo-day fixes</li>
+      </ul>
+      <span class="phase-badge">Phase 1–4 heavy · Demo support</span>
+    </div>
+
+    <div class="member-card m3">
+      <div class="member-role">CSE-AIML Member 1</div>
+      <div class="member-title">ML & Backend Lead</div>
+      <ul class="task-list">
+        <li>MQTT broker setup (Mosquitto, local) and message ingestion pipeline</li>
+        <li>Time-series data storage: SQLite schema design and write pipeline</li>
+        <li>Baseline data collection script: automated 1000-reading healthy capture per node</li>
+        <li>Isolation Forest model: training, threshold tuning, anomaly scoring</li>
+        <li>Severity classification logic: Normal / Warning / Critical thresholds</li>
+        <li>REST API endpoints for dashboard: /nodes, /health, /alerts, /fft-data</li>
+        <li>LSTM autoencoder implementation for research paper (stretch)</li>
+        <li>Model evaluation: precision/recall on simulated fault conditions</li>
+      </ul>
+      <span class="phase-badge">Phase 2–4 heavy · Paper lead</span>
+    </div>
+
+    <div class="member-card m4">
+      <div class="member-role">CSE-AIML Member 2</div>
+      <div class="member-title">Frontend & Integration Lead</div>
+      <ul class="task-list">
+        <li>React app scaffold: component architecture, routing, state management</li>
+        <li>WebSocket client for real-time data streaming from backend</li>
+        <li>Live FFT waveform chart per node (Recharts / Chart.js)</li>
+        <li>Health score gauge component with animated state transitions</li>
+        <li>2D structural map of demo frame: SVG-based, node states colour-coded</li>
+        <li>Alert timeline and event log panel</li>
+        <li>Mobile-responsive layout for judge walkthrough on phone</li>
+        <li>End-to-end system integration testing and demo rehearsal</li>
+      </ul>
+      <span class="phase-badge">Phase 3–5 heavy · Demo coordinator</span>
+    </div>
+
+  </div>
+
+  <div class="hbox" style="margin-top:24px;">
+    <strong>Shared responsibilities:</strong> All 4 members contribute to the research paper (1 section each). Hardware testing in Phase 3 requires all hands — ECE builds, CSE verifies data pipeline simultaneously. Demo rehearsal is a full-team activity minimum 2 weeks before presentation.
+  </div>
+</section>
+
+<!-- ══════════ 06 BOM ══════════ -->
+<section id="bom" style="--accent-color:var(--green)">
+  <div class="section-eyebrow">06 — Bill of Materials & Cost</div>
+  <h2>What To Buy & Where</h2>
+
+  <table class="bom-table">
+    <thead>
+      <tr>
+        <th>Component</th>
+        <th>Spec / Notes</th>
+        <th>Qty</th>
+        <th>Unit Price</th>
+        <th>Total</th>
+        <th>Where to Buy</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="bom-cat" style="--accent-color:var(--blue)"><td colspan="6">── MICROCONTROLLERS</td></tr>
+      <tr>
+        <td>ESP32 DevKit v1</td>
+        <td>30-pin, 38-pin, or WROOM-32 — any variant works. 3 for nodes, 1 spare</td>
+        <td class="qty">4×</td>
+        <td class="price">₹220</td>
+        <td class="price">₹880</td>
+        <td>Robu.in / Sunrom / local SP Road</td>
+      </tr>
+
+      <tr class="bom-cat" style="--accent-color:var(--amber)"><td colspan="6">── SENSORS</td></tr>
+      <tr>
+        <td>MPU-6050 Module</td>
+        <td>6-axis IMU, I²C, 3.3V/5V. GY-521 breakout board. 3 for nodes, 1 spare</td>
+        <td class="qty">4×</td>
+        <td class="price">₹80</td>
+        <td class="price">₹320</td>
+        <td>Robu.in / ElectroPeak / SP Road</td>
+      </tr>
+      <tr>
+        <td>Piezoelectric Disc</td>
+        <td>27mm or 35mm disc. Used as contact acoustic emission sensor. Buy extras.</td>
+        <td class="qty">6×</td>
+        <td class="price">₹15</td>
+        <td class="price">₹90</td>
+        <td>Any local electronics shop / SP Road</td>
+      </tr>
+
+      <tr class="bom-cat" style="--accent-color:var(--purple)"><td colspan="6">── POWER</td></tr>
+      <tr>
+        <td>3.7V LiPo Battery (1000mAh)</td>
+        <td>For wireless node power. 1 per node.</td>
+        <td class="qty">3×</td>
+        <td class="price">₹120</td>
+        <td class="price">₹360</td>
+        <td>Robu.in / Evelta</td>
+      </tr>
+      <tr>
+        <td>TP4056 Charging Module</td>
+        <td>LiPo charger + protection board. 1 per node.</td>
+        <td class="qty">3×</td>
+        <td class="price">₹30</td>
+        <td class="price">₹90</td>
+        <td>Robu.in / SP Road</td>
+      </tr>
+      <tr>
+        <td>MT3608 Boost Converter</td>
+        <td>3.7V → 5V for ESP32 from LiPo. 1 per node.</td>
+        <td class="qty">3×</td>
+        <td class="price">₹25</td>
+        <td class="price">₹75</td>
+        <td>Robu.in</td>
+      </tr>
+
+      <tr class="bom-cat" style="--accent-color:var(--red)"><td colspan="6">── ALERT & OUTPUT</td></tr>
+      <tr>
+        <td>WS2812B LED Strip (0.5m)</td>
+        <td>Addressable RGB. Mounts on frame, turns red on Critical alert.</td>
+        <td class="qty">1×</td>
+        <td class="price">₹180</td>
+        <td class="price">₹180</td>
+        <td>Robu.in / Amazon</td>
+      </tr>
+      <tr>
+        <td>Piezo Buzzer (active)</td>
+        <td>5V active buzzer for audio alert on Critical event.</td>
+        <td class="qty">1×</td>
+        <td class="price">₹20</td>
+        <td class="price">₹20</td>
+        <td>Any local shop</td>
+      </tr>
+
+      <tr class="bom-cat" style="--accent-color:var(--cyan)"><td colspan="6">── STRUCTURE & HARDWARE</td></tr>
+      <tr>
+        <td>Steel Angle Iron / Flat Bar</td>
+        <td>25mm × 25mm × 3mm angle iron, ~1.5m total. For demo frame fabrication.</td>
+        <td class="qty">1 lot</td>
+        <td class="price">₹250</td>
+        <td class="price">₹250</td>
+        <td>Any hardware / steel shop</td>
+      </tr>
+      <tr>
+        <td>M4 Bolts + Nuts + Washers</td>
+        <td>For frame joints and sensor clamping. Buy ~20 sets.</td>
+        <td class="qty">1 lot</td>
+        <td class="price">₹60</td>
+        <td class="price">₹60</td>
+        <td>Any hardware shop</td>
+      </tr>
+      <tr>
+        <td>Strong Neodymium Magnets</td>
+        <td>For quick-attach / detach of sensor nodes on steel frame during demo.</td>
+        <td class="qty">6×</td>
+        <td class="price">₹25</td>
+        <td class="price">₹150</td>
+        <td>Amazon / local</td>
+      </tr>
+
+      <tr class="bom-cat" style="--accent-color:var(--muted)"><td colspan="6">── ELECTRONICS MISC</td></tr>
+      <tr>
+        <td>Perfboard / Small PCB</td>
+        <td>For clean node assembly. Breadboards for prototyping phase.</td>
+        <td class="qty">5×</td>
+        <td class="price">₹20</td>
+        <td class="price">₹100</td>
+        <td>SP Road / Robu.in</td>
+      </tr>
+      <tr>
+        <td>Jumper Wires + Header Pins</td>
+        <td>M-M, M-F, F-F sets. Resistors (1kΩ, 10kΩ), capacitors (100nF, 10µF) assorted.</td>
+        <td class="qty">1 lot</td>
+        <td class="price">₹150</td>
+        <td class="price">₹150</td>
+        <td>SP Road / Robu.in</td>
+      </tr>
+      <tr>
+        <td>Op-Amp IC (LM358 or MCP6002)</td>
+        <td>For piezo signal conditioning / charge amplifier circuit.</td>
+        <td class="qty">3×</td>
+        <td class="price">₹15</td>
+        <td class="price">₹45</td>
+        <td>SP Road</td>
+      </tr>
+      <tr>
+        <td>3D Printed / Acrylic Node Box</td>
+        <td>Enclosure per node. Can use project boxes from local shop if no 3D printer.</td>
+        <td class="qty">3×</td>
+        <td class="price">₹60</td>
+        <td class="price">₹180</td>
+        <td>3D print shop (Bengaluru ~₹50–80/box)</td>
+      </tr>
+      <tr>
+        <td>USB Power Bank (10,000mAh)</td>
+        <td>For powering gateway node + Raspberry Pi / laptop backend during demo.</td>
+        <td class="qty">1×</td>
+        <td class="price">Already owned or ₹600</td>
+        <td class="price">₹0–600</td>
+        <td>—</td>
+      </tr>
+
+      <tr class="total-row">
+        <td colspan="4">TOTAL (excluding power bank if already owned)</td>
+        <td class="price">~₹2,750</td>
+        <td></td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="4">TOTAL with 20% buffer for mistakes / replacements</td>
+        <td class="price">~₹3,300</td>
+        <td></td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="4">TOTAL with optional custom PCB printing (JLCPCB / PCBWay)</td>
+        <td class="price">~₹4,500–5,200</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="hbox" style="margin-top:20px;--accent-color:var(--green)">
+    <strong>Budget verdict:</strong> Well within ₹3,000–₹6,000. The core system lands at ~₹3,300 with buffer. If you want polished custom PCBs (highly recommended for a clean demo), add ~₹1,200 for 5 boards from JLCPCB (10-day delivery to Bengaluru). The steel frame and mechanical hardware is the cheapest part. Spend the saved budget on a good acrylic laser-cut display board showing the architecture diagram.
+  </div>
+</section>
+
+<!-- ══════════ 07 TIMELINE ══════════ -->
+<section id="timeline" style="--accent-color:var(--amber)">
+  <div class="section-eyebrow">07 — Project Timeline</div>
+  <h2>Phase by Phase</h2>
+
+  <div class="timeline">
+
+    <div class="tl-item" style="--accent-color:var(--blue)">
+      <div class="tl-week">Weeks 1–2</div>
+      <div class="tl-spine"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-body">
+        <div class="tl-phase">Phase 1 — Foundation</div>
+        <div class="tl-title">Component procurement + individual module testing</div>
+        <div class="tl-tasks">Order all components. Verify MPU-6050 reads on ESP32. Verify piezo disc output on oscilloscope/ADC. Establish MQTT broker locally. Each member sets up their dev environment. No integration yet — just prove each piece works alone.</div>
+      </div>
+    </div>
+
+    <div class="tl-item" style="--accent-color:var(--cyan)">
+      <div class="tl-week">Weeks 3–4</div>
+      <div class="tl-spine"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-body">
+        <div class="tl-phase">Phase 2 — Core Build</div>
+        <div class="tl-title">FFT firmware + ESP-NOW mesh + backend pipeline</div>
+        <div class="tl-tasks">FFT running on ESP32 — verify frequency peaks match known excitation frequencies. ESP-NOW mesh working between 3 nodes. Backend receiving MQTT messages and storing to SQLite. Basic REST API returning node data. No dashboard yet, no ML yet.</div>
+      </div>
+    </div>
+
+    <div class="tl-item" style="--accent-color:var(--amber)">
+      <div class="tl-week">Weeks 5–7</div>
+      <div class="tl-spine"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-body">
+        <div class="tl-phase">Phase 3 — Integration</div>
+        <div class="tl-title">Physical frame + ML model + dashboard v1</div>
+        <div class="tl-tasks">Steel frame built and sensor nodes mounted. Collect 1000 baseline readings per node. Train Isolation Forest. Dashboard showing live FFT + health scores. Verify end-to-end: tap frame → anomaly detected → dashboard updates → LED/buzzer fires. First full system test.</div>
+      </div>
+    </div>
+
+    <div class="tl-item" style="--accent-color:var(--green)">
+      <div class="tl-week">Weeks 8–10</div>
+      <div class="tl-spine"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-body">
+        <div class="tl-phase">Phase 4 — Refinement</div>
+        <div class="tl-title">Threshold tuning + dashboard polish + paper draft</div>
+        <div class="tl-tasks">Tune anomaly thresholds to minimize false positives in demo environment. Polish dashboard UI. Simulate loose-joint damage scenario and verify detection. Begin research paper draft. Order custom PCBs if going that route. Fix all integration bugs found in Phase 3.</div>
+      </div>
+    </div>
+
+    <div class="tl-item" style="--accent-color:var(--purple)">
+      <div class="tl-week">Weeks 11–12</div>
+      <div class="tl-spine"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-body">
+        <div class="tl-phase">Phase 5 — Presentation Prep</div>
+        <div class="tl-title">Demo rehearsal + paper completion + display board</div>
+        <div class="tl-tasks">Full demo rehearsals minimum 3 times. Prepare display board (architecture diagram, system photos, key results). Complete and proofread research paper. Prepare 3-minute verbal pitch. Stress test the system for 24 hours continuous operation to ensure demo reliability.</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════ 08 DEMO SCRIPT ══════════ -->
+<section id="demo" style="--accent-color:var(--green)">
+  <div class="section-eyebrow">08 — Live Demo Script</div>
+  <h2>60-Second Judge Walkthrough</h2>
+
+  <p>This is your most important asset. Every step below should be rehearsed until it takes exactly the stated time. The goal: a judge who has never seen this project walks away with a complete mental picture in under 90 seconds.</p>
+
+  <div class="demo-steps" style="--accent-color:var(--green)">
+    <div class="demo-step">
+      <div class="demo-step-num">01</div>
+      <div class="demo-step-content">
+        <div class="demo-step-title">Set the scene — 10 seconds</div>
+        <div class="demo-step-desc">Point to the steel frame. "This represents a bridge section. These three nodes are continuously measuring vibration and acoustic signatures. Right now, the structure is healthy — all green on the dashboard." Judge looks at the screen, sees three green gauges.</div>
+      </div>
+    </div>
+    <div class="demo-step">
+      <div class="demo-step-num">02</div>
+      <div class="demo-step-content">
+        <div class="demo-step-title">Show normal operation — 15 seconds</div>
+        <div class="demo-step-desc">Tap the frame gently with a finger. "Normal vibration — a person walking on the bridge. The system sees it, the FFT shows the frequency spike, but the anomaly score stays in the safe zone." Dashboard shows FFT spike, health score dips briefly and recovers.</div>
+      </div>
+    </div>
+    <div class="demo-step">
+      <div class="demo-step-num">03</div>
+      <div class="demo-step-content">
+        <div class="demo-step-title">Induce the fault — 10 seconds</div>
+        <div class="demo-step-desc">Slightly loosen the bolt at the midspan joint (pre-prepared). "I've just simulated a micro-fracture at the joint — what you'd see in a real bridge after years of fatigue loading." Nothing visible changes on the structure. This is the point.</div>
+      </div>
+    </div>
+    <div class="demo-step">
+      <div class="demo-step-num">04</div>
+      <div class="demo-step-content">
+        <div class="demo-step-title">The detection moment — 15 seconds</div>
+        <div class="demo-step-desc">Tap the frame at the same force as before. "Same tap. Watch." The frequency spectrum has shifted — new harmonics appear. The anomaly score crosses the threshold. Dashboard flips Node B to amber, then red. The LED strip on the frame turns red. The buzzer fires three pulses. The alert log timestamps the event.</div>
+      </div>
+    </div>
+    <div class="demo-step">
+      <div class="demo-step-num">05</div>
+      <div class="demo-step-content">
+        <div class="demo-step-title">The punchline — 10 seconds</div>
+        <div class="demo-step-desc">"A visual inspector would not have caught that. The bolt looks fine. But the acoustic signature changed, the ML model flagged it, and we got a timestamped alert — before any visible damage occurred. This is what we're deploying on real bridges."</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hbox" style="--accent-color:var(--amber);margin-top:24px;">
+    <strong>Critical demo reliability rules:</strong> Run the full demo at least 10 times before presentation day. The loose-bolt simulation must be calibrated — too loose and the frequency shift is obvious even without sensors; just right and only the sensor catches it. Keep a fully charged power bank on standby. Have the dashboard open on two devices (laptop + phone) in case one fails. The demo must work without internet — all backend runs locally.
+  </div>
+</section>
+
+<!-- ══════════ 09 RESEARCH PAPER ══════════ -->
+<section id="paper" style="--accent-color:var(--purple)">
+  <div class="section-eyebrow">09 — Research Paper</div>
+  <h2>Paper Structure & Ownership</h2>
+
+  <div class="paper-box">
+    <div class="paper-field">
+      <div class="paper-key">Title</div>
+      <div class="paper-val">UrbanPulse: A Low-Cost IoT-Based Structural Health Monitoring System Using Sensor Fusion and Unsupervised Anomaly Detection for Urban Infrastructure</div>
+    </div>
+    <div class="paper-field">
+      <div class="paper-key">Abstract</div>
+      <div class="paper-val">ECE Member 2 drafts. ~200 words. Cover: problem, system overview, key results (detection accuracy, node cost, latency).</div>
+    </div>
+    <div class="paper-field">
+      <div class="paper-key">Section 1 — Introduction</div>
+      <div class="paper-val">CSE-AIML Member 2. Urban infrastructure failure statistics, current inspection limitations, smart city SHM gap, paper contributions.</div>
+    </div>
+    <div class="paper-field">
+      <div class="paper-key">Section 2 — Related Work</div>
+      <div class="paper-val">CSE-AIML Member 1. Survey of existing SHM systems: commercial (Trimble, NI), academic (piezo-based, MEMS-based). Position UrbanPulse vs cost and capability.</div>
+    </div>
+    <div class="paper-field">
+      <div class="paper-key">Section 3 — System Design</div>
+      <div class="paper-val">ECE Member 1. Hardware architecture, sensor selection rationale, node design, ESP-NOW mesh topology, power design.</div>
+    </div>
+    <div class="paper-field">
+      <div class="paper-key">Section 4 — Signal Processing & ML</div>
+      <div class="paper-val">CSE-AIML Member 1. FFT implementation details, feature extraction, Isolation Forest training methodology, threshold determination, LSTM autoencoder (if implemented).</div>
+    </div>
+    <div class="paper-field">
+      <div class="paper-key">Section 5 — Experiments & Results</div>
+      <div class="paper-val">All members. Experimental setup (frame dimensions, sensor placement, test conditions), detection accuracy table, latency measurements, false positive rate, cost comparison table vs commercial systems.</div>
+    </div>
+    <div class="paper-field">
+      <div class="paper-key">Section 6 — Conclusion</div>
+      <div class="paper-val">ECE Member 2. Summary, real-world deployment pathway, limitations, future work (solar power, LoRa for remote bridges, cloud integration).</div>
+    </div>
+    <div class="paper-field">
+      <div class="paper-key">Target Venues</div>
+      <div class="paper-val">IEEE ICIOT / Springer Smart Cities / IJEAT / IRJET — all accept student project papers. IRJET and IJEAT have fast review cycles suitable for your timeline.</div>
+    </div>
+  </div>
+</section>
+
+<div style="background:var(--surface);border-top:1px solid var(--border);padding:32px 64px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;">UrbanPulse · Project Bible · v1.0</span>
+  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;">Generated via Claude · Anthropic</span>
+</div>
+
+</body>
+</html>

@@ -6,15 +6,17 @@
 
 ---
 
-## Must-Haves (from SPEC)
+## Must-Haves (from SPEC + Phase 1 Discussion)
 
 - [ ] MQTT ingestion from 3 ESP32 nodes (paho-mqtt, thread-bridge)
 - [ ] SQLite time-series storage with WAL mode
-- [ ] Rule-based severity classification (threshold config)
+- [ ] Rule-based severity classification (threshold config.json)
+- [ ] Health score computation 0–100 per node in backend
+- [ ] Node heartbeat + OFFLINE detection (10s timeout)
 - [ ] Alert back-publish to MQTT (LED/buzzer trigger)
-- [ ] REST API: `/api/nodes`, `/api/alerts`, `/api/health`
+- [ ] REST API: nodes, alerts, history, health, thresholds, CSV export
 - [ ] WebSocket broadcast hub (snapshot + deltas, <1s latency)
-- [ ] Mock MQTT publisher for hardware-independent testing
+- [ ] Mock MQTT publisher with normal + fault simulation modes
 - [ ] Runs 100% offline, no internet dependency
 
 ---
@@ -22,38 +24,44 @@
 ## Phases
 
 ### Phase 1: Foundation — MQTT + Skeleton
-**Status**: ⬜ Not Started
-**Objective**: Runnable FastAPI server with MQTT ingestion working and mock publisher for testing without ESP32 hardware
+**Status**: 📋 Planned
+**Objective**: Runnable FastAPI server with MQTT ingestion working end-to-end; mock publisher lets entire backend be tested without any ESP32 hardware
 **Deliverables**:
-- FastAPI app with lifespan (startup/shutdown)
-- Mosquitto broker configured and verified
+- FastAPI app with lifespan (startup/shutdown hooks)
+- Mosquitto broker local config (`mosquitto.conf`) + startup instructions
 - `mqtt/ingester.py` — paho subscriber thread-bridge → asyncio queue
-- `mqtt/publisher.py` — alert back-publish
-- `mock_publisher.py` — simulates 3 nodes publishing JSON packets
-- `config.json` — broker host, port, MQTT topics, thresholds
-**Requirements**: SPEC § MQTT Contract, SPEC § Constraints (offline)
+- `mqtt/publisher.py` — alert back-publish to `urbanpulse/alerts`
+- `mock_publisher.py` — two modes: `--mode normal` (healthy) | `--mode fault --node B` (CRITICAL burst)
+- `config.json` — broker settings, MQTT topics, severity thresholds, health score boundaries
+- Verified: mock publisher → Mosquitto → ingester → asyncio queue (logged to console)
+**Requirements**: SPEC § MQTT Contract, SPEC § Constraints (offline), ADR-004, ADR-005, ADR-007
 
 ### Phase 2: Storage + Processing Pipeline
 **Status**: ⬜ Not Started
-**Objective**: Every MQTT packet is classified for severity, stored in SQLite, and the node registry is maintained
+**Objective**: Every MQTT packet is classified, health score computed, stored in SQLite; node registry and heartbeat detection working
 **Deliverables**:
-- `db/connection.py` — SQLite WAL mode, schema migrations on startup
-- `db/queries.py` — insert_reading(), insert_alert(), get_node_state(), upsert_node()
-- `core/classifier.py` — rule-based threshold classification per sensor
-- `core/pipeline.py` — async loop: dequeue → classify → store → emit event
-- Unit tests for classifier with known inputs
-**Requirements**: SPEC § SQLite Schema, SPEC § Rule-Based Severity
+- `db/connection.py` — SQLite WAL mode, schema migrations (readings, alerts, nodes tables)
+- `db/queries.py` — insert_reading(), insert_alert(), upsert_node(), get_history()
+- `core/classifier.py` — rule-based threshold classification (returns severity + reason)
+- `core/health_score.py` — computes 0–100 health score from FFT features
+- `core/heartbeat.py` — async task: checks last_seen per node, broadcasts OFFLINE if >10s
+- `core/pipeline.py` — async loop: dequeue → classify → score → store → emit
+- Unit tests: classifier (all severity levels), health_score (edge cases 0 and 100)
+**Requirements**: SPEC § SQLite Schema, SPEC § Health Score Algorithm, ADR-007, ADR-008
 
 ### Phase 3: REST API
 **Status**: ⬜ Not Started
-**Objective**: All dashboard data is queryable via REST; Postman / curl verification
+**Objective**: All 7 REST endpoints serving correct data; curl-verified against mock publisher stream
 **Deliverables**:
-- `GET /api/nodes` — all nodes + current_state + last_seen
-- `GET /api/nodes/{id}/data?limit=50` — recent readings per node
-- `GET /api/alerts?limit=20` — recent alert events
-- `GET /api/health` — uptime, total packets ingested
-- CORS enabled for React frontend on localhost:5173
-**Requirements**: SPEC § REST API Surface
+- `GET /api/nodes` — nodes with health_score, state, last_seen, online status
+- `GET /api/nodes/{id}/data?limit=50` — readings (FFT + raw values + health_score)
+- `GET /api/nodes/{id}/history?minutes=10` — health score trend (timestamp + score pairs)
+- `GET /api/alerts?limit=20` — alert events with ts, node_id, severity, reason
+- `GET /api/alerts/export` — StreamingResponse CSV download
+- `GET /api/health` — uptime_s, total_packets, last_packet_age_ms
+- `GET /api/config/thresholds` — current Warning/Critical values from config.json
+- CORS enabled (localhost:5173 default, configurable)
+**Requirements**: SPEC § REST API Surface, SPEC § Frontend Data Contract, ADR-009
 
 ### Phase 4: WebSocket Hub
 **Status**: ⬜ Not Started
