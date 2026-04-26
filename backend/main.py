@@ -128,6 +128,12 @@ app.add_middleware(
 )
 
 
+from api.routers import nodes, alerts, system
+
+app.include_router(nodes.router)
+app.include_router(alerts.router)
+app.include_router(system.router)
+
 # ── Root endpoint ─────────────────────────────────────────────────────────────
 @app.get("/", tags=["System"])
 async def root():
