@@ -2,6 +2,7 @@ import asyncio
 import time
 import logging
 from db.queries import get_nodes, upsert_node
+from ws.hub import hub
 
 logger = logging.getLogger("urbanpulse.heartbeat")
 
@@ -26,6 +27,17 @@ async def heartbeat_monitor(app_state):
                 if (current_time - last_seen) > (timeout_s * 1000) and state != "OFFLINE":
                     logger.warning(f"Node {node_id} is OFFLINE. Last seen {last_seen}")
                     upsert_node(node_id, "OFFLINE", last_seen, health_score)
+                    
+                    # Broadcast offline status
+                    await hub.broadcast({
+                        "type": "node_update",
+                        "data": {
+                            "node_id": node_id,
+                            "state": "OFFLINE",
+                            "last_seen": last_seen,
+                            "last_health_score": health_score
+                        }
+                    })
                     
     except asyncio.CancelledError:
         logger.info("Heartbeat monitor stopped.")

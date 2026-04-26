@@ -24,7 +24,7 @@
 ## Phases
 
 ### Phase 1: Foundation — MQTT + Skeleton
-**Status**: 📋 Planned
+**Status**: ✅ Complete
 **Objective**: Runnable FastAPI server with MQTT ingestion working end-to-end; mock publisher lets entire backend be tested without any ESP32 hardware
 **Deliverables**:
 - FastAPI app with lifespan (startup/shutdown hooks)
@@ -37,7 +37,7 @@
 **Requirements**: SPEC § MQTT Contract, SPEC § Constraints (offline), ADR-004, ADR-005, ADR-007
 
 ### Phase 2: Storage + Processing Pipeline
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: Every MQTT packet is classified, health score computed, stored in SQLite; node registry and heartbeat detection working
 **Deliverables**:
 - `db/connection.py` — SQLite WAL mode, schema migrations (readings, alerts, nodes tables)
@@ -50,7 +50,7 @@
 **Requirements**: SPEC § SQLite Schema, SPEC § Health Score Algorithm, ADR-007, ADR-008
 
 ### Phase 3: REST API
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: All 7 REST endpoints serving correct data; curl-verified against mock publisher stream
 **Deliverables**:
 - `GET /api/nodes` — nodes with health_score, state, last_seen, online status
