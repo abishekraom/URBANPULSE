@@ -64,7 +64,7 @@
 **Requirements**: SPEC § REST API Surface, SPEC § Frontend Data Contract, ADR-009
 
 ### Phase 4: WebSocket Hub
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: React dashboard receives live updates via WebSocket within 1s of sensor data arriving
 **Deliverables**:
 - `ws/hub.py` — BroadcastHub (per-client bounded queues, fan-out)
@@ -75,7 +75,7 @@
 **Requirements**: SPEC § Success Criteria (WebSocket <1s)
 
 ### Phase 5: Integration + Hardening
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: Backend connects to real ESP32 hardware; thresholds calibrated; 24h stress test passes
 **Deliverables**:
 - End-to-end test with real gateway ESP32 publishing MQTT
