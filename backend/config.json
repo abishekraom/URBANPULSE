@@ -1,0 +1,49 @@
+{
+  "broker": {
+    "host": "localhost",
+    "port": 1883,
+    "keepalive": 60
+  },
+  "topics": {
+    "data_subscribe": "urbanpulse/node/+/data",
+    "heartbeat_subscribe": "urbanpulse/node/+/heartbeat",
+    "alert_publish": "urbanpulse/alerts"
+  },
+  "thresholds": {
+    "mpu": {
+      "warning_peak_amp_g": 0.3,
+      "critical_peak_amp_g": 0.8
+    },
+    "piezo": {
+      "warning_adc": 800,
+      "critical_adc": 2000
+    },
+    "frequency_deviation_pct": 20
+  },
+  "health_score": {
+    "green_min": 70,
+    "amber_min": 40,
+    "mpu_warning_penalty": 30,
+    "mpu_critical_penalty": 60,
+    "piezo_warning_penalty": 30,
+    "piezo_critical_penalty": 60,
+    "freq_deviation_penalty": 10
+  },
+  "heartbeat": {
+    "publish_interval_s": 5,
+    "offline_timeout_s": 10
+  },
+  "api": {
+    "cors_origins": ["http://localhost:5173", "http://localhost:3000"],
+    "default_data_limit": 50,
+    "default_history_minutes": 10,
+    "default_alert_limit": 20
+  },
+  "mock": {
+    "nodes": ["A", "B", "C"],
+    "publish_interval_s": 0.5,
+    "fault_duration_s": 10,
+    "fault_piezo_adc": 2500,
+    "fault_mpu_peak_amp_g": 1.2
+  }
+}
