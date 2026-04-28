@@ -21,6 +21,7 @@ from mqtt.ingester import MQTTIngester
 from mqtt.publisher import MQTTPublisher
 from core.pipeline import process_queue
 from core.heartbeat import heartbeat_monitor
+from db.connection import get_db
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -81,6 +82,12 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
 
     # Expose shared state
+    # Reset stale DB node states from previous runs so heartbeat doesn't
+    # immediately fire OFFLINE for nodes that aren't live yet this session.
+    with get_db() as conn:
+        conn.execute("UPDATE nodes SET state='OFFLINE', last_seen=0")
+    logger.info("✓ Node states reset for fresh session")
+
     app.state.config = config
     app.state.broker_ok = broker_ok
     app.state.queue = asyncio.Queue(maxsize=1000)

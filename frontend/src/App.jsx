@@ -124,7 +124,11 @@ export default function App() {
           } else if (msg.type === "node_update") {
             const d = msg.data;
             const nodeName = toNodeName(d.node_id);
-            updateNode(nodeName, { score: d.last_health_score ?? 100 });
+            // Only update score from ONLINE heartbeats — OFFLINE just means
+            // no recent heartbeat and should NOT override a live reading score.
+            if (d.state === "ONLINE") {
+              updateNode(nodeName, { score: d.last_health_score ?? 100 });
+            }
           }
         } catch (e) {
           console.warn("WS parse error:", e);

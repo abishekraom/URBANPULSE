@@ -21,12 +21,18 @@ async def process_queue(app_state):
             payload = event.get("payload", {})
             
             node_id = payload.get("node_id", "UNKNOWN")
-            ts = payload.get("ts", int(time.time() * 1000))
+            # Mock publisher sends "timestamp"; real ESP32 may send "ts" — support both
+            ts = payload.get("ts") or payload.get("timestamp") or int(time.time() * 1000)
             
             if topic.endswith("/data"):
                 # Process data reading
                 severity, reason = classify_reading(payload, config)
                 health_score = compute_health_score(payload, config)
+                
+                logger.info(
+                    "Pipeline ← %s | score=%d | severity=%s",
+                    node_id, health_score, severity
+                )
                 
                 # Store reading
                 insert_reading(node_id, ts, health_score, severity, payload)
