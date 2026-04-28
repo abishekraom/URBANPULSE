@@ -17,7 +17,7 @@ const INITIAL_NODES = {
 };
 
 const SEED_EVENTS = [
-  { id: "s1", time: new Date().toLocaleTimeString("en-US", { hour12: false }), node: "System", level: "healthy", msg: "Telemetry stream connected — listening on ws://localhost:8000/ws" },
+  { id: "s1", time: new Date().toLocaleTimeString("en-US", { hour12: false }), node: "System", level: "healthy", msg: "Telemetry stream connecting via Vite proxy → ws://localhost:8000/ws" },
   { id: "s2", time: new Date().toLocaleTimeString("en-US", { hour12: false }), node: "System", level: "healthy", msg: "Sensors calibrated and baseline established" },
 ];
 
@@ -62,7 +62,9 @@ export default function App() {
   });
 
   useEffect(() => {
-    const wsUrl = "ws://localhost:8000/ws";
+    // Use relative URL so it routes through the Vite dev-server proxy (/ws → ws://localhost:8000/ws)
+    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${wsProto}//${window.location.host}/ws`;
     let ws;
     let pendingUpdates = {}; // keyed by nodeName, deduplicated
 
@@ -76,7 +78,7 @@ export default function App() {
           time: now(),
           node: "System",
           level: "healthy",
-          msg: "WebSocket connected to UrbanPulse backend at ws://localhost:8000/ws",
+          msg: `WebSocket connected → ws://localhost:8000/ws (via Vite proxy)`,
         });
       };
 

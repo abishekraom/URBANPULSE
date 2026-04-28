@@ -85,7 +85,9 @@ async def lifespan(app: FastAPI):
     app.state.broker_ok = broker_ok
     app.state.queue = asyncio.Queue(maxsize=1000)
     
-    app.state.ingester = MQTTIngester(config, app.state.queue, asyncio.get_event_loop())
+    # Capture the RUNNING event loop (uvicorn's loop) — not the one at import time
+    running_loop = asyncio.get_running_loop()
+    app.state.ingester = MQTTIngester(config, app.state.queue, running_loop)
     app.state.publisher = MQTTPublisher(config)
 
     if broker_ok:
