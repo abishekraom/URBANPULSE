@@ -49,7 +49,11 @@ If you don't have ESP32 hardware connected, you can simulate network traffic:
 
 2. Run the mock publisher in `fault` mode to simulate a CRITICAL anomaly on a specific node (e.g., Node B):
    ```bash
+<<<<<<< HEAD
    python mock_publisher.py --mode fault --node "Node B"
+=======
+   python mock_publisher.py --mode fault --node B
+>>>>>>> 2de8723f0254f714d2e89b200e0e8339f67d0668
    ```
 
 ## Endpoints
