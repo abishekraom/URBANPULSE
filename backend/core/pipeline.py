@@ -3,6 +3,7 @@ import logging
 import time
 from core.classifier import classify_reading
 from core.health_score import compute_health_score
+from core.contract import validate_data_payload, validate_heartbeat_payload
 from db.queries import insert_reading, insert_alert, upsert_node
 from ws.hub import hub
 
@@ -13,18 +14,32 @@ async def process_queue(app_state):
     config = app_state.config
     queue = app_state.queue
     publisher = app_state.publisher
-    
+
+    # Packet statistics tracked in shared state for /api/health
+    app_state.stats = {"total_packets": 0, "last_packet_ts": 0}
+
     try:
         while True:
             event = await queue.get()
             topic = event.get("topic", "")
             payload = event.get("payload", {})
-            
+
             node_id = payload.get("node_id", "UNKNOWN")
-            # Mock publisher sends "timestamp"; real ESP32 may send "ts" — support both
+            # Mock publisher sends "ts"; real ESP32 may send "ts" — both handled
             ts = payload.get("ts") or payload.get("timestamp") or int(time.time() * 1000)
-            
+
+            # Track packet statistics
+            app_state.stats["total_packets"] += 1
+            app_state.stats["last_packet_ts"] = int(time.time() * 1000)
+
             if topic.endswith("/data"):
+                # ── Contract validation ───────────────────────────────────────
+                valid, reason = validate_data_payload(payload)
+                if not valid:
+                    logger.warning("Contract violation from %s: %s — payload dropped", node_id, reason)
+                    queue.task_done()
+                    continue
+
                 # Process data reading
                 severity, reason = classify_reading(payload, config)
                 health_score = compute_health_score(payload, config)
@@ -55,7 +70,7 @@ async def process_queue(app_state):
                 # Handle alerts
                 if severity in ["WARNING", "CRITICAL"]:
                     insert_alert(node_id, severity, reason or "Threshold exceeded", ts)
-                    publisher.publish_alert(node_id, severity, reason or "Threshold exceeded", payload)
+                    publisher.publish_alert(node_id, severity, reason or "Threshold exceeded")
                     logger.warning(f"Alert generated for {node_id}: {severity} ({reason})")
                     
                     # Broadcast alert
@@ -70,6 +85,13 @@ async def process_queue(app_state):
                     })
                     
             elif topic.endswith("/heartbeat"):
+                # ── Contract validation ───────────────────────────────────────
+                valid, reason = validate_heartbeat_payload(payload)
+                if not valid:
+                    logger.warning("Heartbeat contract violation from %s: %s — dropped", node_id, reason)
+                    queue.task_done()
+                    continue
+
                 # Handle heartbeat
                 from db.queries import get_nodes
                 nodes = get_nodes()

@@ -1,0 +1,125 @@
+================================================================================
+         URBANPULSE — COMPLETE PIN CONNECTION GUIDE
+================================================================================
+
+
+================================================================================
+  SENSOR NODE (Build 3 of these — Node 1, Node 2, Node 3)
+================================================================================
+
+--- MPU-6050 (GY-521) to ESP32 ---
+
+    MPU-6050 VCC   ------>  ESP32 3.3V     (WARNING: Do NOT use 5V)
+    MPU-6050 GND   ------>  ESP32 GND
+    MPU-6050 SDA   ------>  ESP32 GPIO 21
+    MPU-6050 SCL   ------>  ESP32 GPIO 22
+    MPU-6050 AD0   ------>  ESP32 GND      (Sets I2C address to 0x68)
+    MPU-6050 INT   ------>  (Not connected)
+    MPU-6050 XDA   ------>  (Not connected)
+    MPU-6050 XCL   ------>  (Not connected)
+
+
+--- Piezo Disc to LM358 Op-Amp to ESP32 ---
+
+    Piezo (+) red wire    ------>  LM358 Pin 3 (IN+)
+    Piezo (-) black wire  ------>  GND
+
+    LM358 Pin 8 (VCC)    ------>  ESP32 3.3V
+    LM358 Pin 4 (GND)    ------>  ESP32 GND
+    LM358 Pin 1 (OUT)    ------>  ESP32 GPIO 34 (ADC input)
+
+    1M ohm resistor       ------  Between LM358 Pin 1 (OUT) and Pin 2 (IN-)
+    100nF capacitor       ------  Between LM358 Pin 1 (OUT) and Pin 2 (IN-)
+                                  (In parallel with the 1M ohm resistor)
+
+    10k ohm resistor      ------  Between ESP32 GPIO 34 and GND
+                                  (IMPORTANT: Pull-down — prevents garbage
+                                  values when piezo is idle. Do NOT skip this.)
+
+    LM358 Pin 5, 6, 7    ------>  (Not connected — only Channel A is used)
+
+    LM358 Pinout (8-pin DIP, top view):
+    +-----------+
+    | 1       8 |    Pin 1 = OUT (Channel A)
+    | 2       7 |    Pin 2 = IN- (Channel A)
+    | 3       6 |    Pin 3 = IN+ (Channel A)
+    | 4       5 |    Pin 4 = GND,  Pin 8 = VCC
+    +-----------+
+
+    PIEZO WIRE TIPS:
+    - Solder wires onto the disc for best results (2-3 seconds max
+      per joint — piezo ceramic is heat-sensitive, too long kills it)
+    - Center silver pad = (+), outer brass ring = (-)
+    - If no soldering iron: twist piezo wire around a jumper wire,
+      wrap with electrical tape, then plug jumper into breadboard
+    - Do NOT plug thin piezo wires directly into breadboard — they
+      fall out and cause floating/garbage readings
+
+
+--- Power (per node) ---
+
+    Option A — USB Power Bank (RECOMMENDED for demo):
+      Power bank USB out ------>  ESP32 micro-USB port
+      (No extra components needed. Just a USB cable.)
+
+    Option B — LiPo Battery:
+      LiPo Battery (+)     ------>  TP4056 B+
+      LiPo Battery (-)     ------>  TP4056 B-
+      TP4056 OUT+           ------>  MT3608 IN+
+      TP4056 OUT-           ------>  MT3608 IN-
+      MT3608 OUT+           ------>  ESP32 VIN     (Set to 5.0V with multimeter FIRST!)
+      MT3608 OUT-           ------>  ESP32 GND
+
+    NOTE: For testing, just use the USB cable from your laptop.
+
+
+================================================================================
+  GATEWAY NODE (Node 1) — ADDITIONAL CONNECTIONS
+  (Has all sensor node connections above PLUS the following)
+================================================================================
+
+--- Active Buzzer to ESP32 ---
+
+    Buzzer (+) positive   --[1k ohm resistor]-->  ESP32 GPIO 18
+    Buzzer (-) negative   ------>  ESP32 GND
+
+    NOTE: The buzzer sounds when ANY of the 3 nodes reports a high
+    vibration/acoustic reading. 3 short pulses = CRITICAL, 1 long = WARNING.
+
+
+================================================================================
+  GPIO SUMMARY — ALL ESP32 PINS USED
+================================================================================
+
+    GPIO 21   =  MPU-6050 SDA (I2C data)       — All nodes
+    GPIO 22   =  MPU-6050 SCL (I2C clock)      — All nodes
+    GPIO 34   =  Piezo ADC input (from LM358)  — All nodes
+    GPIO 18   =  Buzzer output                  — Gateway only
+    GPIO 2    =  Onboard LED (status blink)     — All nodes
+    3.3V      =  Power to MPU-6050 and LM358   — All nodes
+    VIN       =  5V input from MT3608           — All nodes
+    GND       =  Common ground                  — All nodes
+
+
+================================================================================
+  TOTAL COMPONENTS PER NODE
+================================================================================
+
+    Sensor Node (x2):
+      - 1x ESP32 DevKit v1
+      - 1x MPU-6050 (GY-521 breakout)
+      - 1x Piezo disc (27mm or 35mm) — solder wires on for best contact
+      - 1x LM358 op-amp IC
+      - 1x 1M ohm resistor (LM358 feedback)
+      - 1x 100nF ceramic capacitor (LM358 feedback)
+      - 1x 10k ohm resistor (GPIO 34 pull-down — prevents garbage readings)
+      - 1x USB power bank + cable (or LiPo + TP4056 + MT3608)
+      - 1x Breadboard (half-size 400-tie)
+      - Jumper wires as needed
+
+    Gateway Node (x1):
+      - Everything listed above for a sensor node
+      - 1x Active buzzer (5V)
+      - 1x 1k ohm resistor (for buzzer)
+
+================================================================================

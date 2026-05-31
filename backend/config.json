@@ -11,12 +11,14 @@
   },
   "thresholds": {
     "mpu": {
-      "warning_peak_amp_g": 0.3,
-      "critical_peak_amp_g": 0.8
+      "warning_peak_amp_g": 0.15,
+      "critical_peak_amp_g": 0.4
     },
     "piezo": {
       "warning_adc": 800,
-      "critical_adc": 2000
+      "critical_adc": 2000,
+      "warning_peak_amp_v": 0.6,
+      "critical_peak_amp_v": 1.5
     },
     "frequency_deviation_pct": 20
   },
@@ -31,7 +33,7 @@
   },
   "heartbeat": {
     "publish_interval_s": 5,
-    "offline_timeout_s": 10
+    "offline_timeout_s": 15
   },
   "api": {
     "cors_origins": ["http://localhost:5173", "http://localhost:3000"],

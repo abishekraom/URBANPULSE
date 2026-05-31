@@ -34,18 +34,19 @@ def get_nodes() -> List[dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 def get_history(node_id: str, minutes: int) -> List[Tuple[int, int]]:
-    # Get all readings for the node in the last N minutes
-    current_ts = int(time.time() * 1000)
-    cutoff_ts = current_ts - (minutes * 60 * 1000)
-    
+    # Return the last 120 readings (the ESP32 sends millis() not epoch, 
+    # so time-based filtering won't match — use count-based approach)
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT ts, health_score 
             FROM readings 
-            WHERE node_id = ? AND ts >= ?
-            ORDER BY ts ASC
-        """, (node_id, cutoff_ts))
-        return [(row["ts"], row["health_score"]) for row in cursor.fetchall()]
+            WHERE node_id = ?
+            ORDER BY ts DESC
+            LIMIT 120
+        """, (node_id,))
+        result = [(row["ts"], row["health_score"]) for row in cursor.fetchall()]
+        result.reverse()
+        return result
 
 def get_recent_readings(node_id: str, limit: int) -> List[dict]:
     with get_db() as conn:

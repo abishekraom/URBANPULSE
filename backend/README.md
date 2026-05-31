@@ -17,6 +17,7 @@ This is the backend data ingestion, processing, and API layer for the UrbanPulse
 ## Setup
 
 1. Install dependencies:
+
    ```bash
    pip install -r requirements.txt
    ```
@@ -27,11 +28,13 @@ This is the backend data ingestion, processing, and API layer for the UrbanPulse
 ## Running the Server
 
 1. Ensure your Mosquitto broker is running. If you have Mosquitto installed locally, you can run:
+
    ```bash
    mosquitto -c mosquitto.conf
    ```
 
 2. Start the FastAPI application:
+
    ```bash
    uvicorn main:app --host 0.0.0.1 --port 8000 --reload
    ```
@@ -43,17 +46,14 @@ This is the backend data ingestion, processing, and API layer for the UrbanPulse
 If you don't have ESP32 hardware connected, you can simulate network traffic:
 
 1. In a new terminal, run the mock publisher in `normal` mode to simulate healthy nodes:
+
    ```bash
    python mock_publisher.py --mode normal
    ```
 
 2. Run the mock publisher in `fault` mode to simulate a CRITICAL anomaly on a specific node (e.g., Node B):
    ```bash
-<<<<<<< HEAD
-   python mock_publisher.py --mode fault --node "Node B"
-=======
    python mock_publisher.py --mode fault --node B
->>>>>>> 2de8723f0254f714d2e89b200e0e8339f67d0668
    ```
 
 ## Endpoints

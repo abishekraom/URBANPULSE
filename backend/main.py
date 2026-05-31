@@ -101,17 +101,21 @@ async def lifespan(app: FastAPI):
         app.state.ingester.start()
         app.state.publisher.connect()
         app.state.pipeline_task = asyncio.create_task(process_queue(app.state))
-        app.state.heartbeat_task = asyncio.create_task(heartbeat_monitor(app.state))
+    else:
+        logger.warning("  MQTT broker not available — HTTP-only mode (no MQTT pipeline)")
+
+    # Heartbeat monitor always runs (covers both MQTT and HTTP nodes)
+    app.state.heartbeat_task = asyncio.create_task(heartbeat_monitor(app.state))
 
     yield  # ← application runs here
 
     # ── Shutdown ─────────────────────────────────────────────────────────────
     logger.info("UrbanPulse Backend shutting down...")
-    if app.state.ingester is not None:
+    if hasattr(app.state, "ingester") and app.state.ingester is not None:
         app.state.ingester.stop()
-    if app.state.publisher is not None:
+    if hasattr(app.state, "publisher") and app.state.publisher is not None:
         app.state.publisher.disconnect()
-        
+
     if hasattr(app.state, "pipeline_task"):
         app.state.pipeline_task.cancel()
     if hasattr(app.state, "heartbeat_task"):
@@ -137,12 +141,13 @@ app.add_middleware(
 )
 
 
-from api.routers import nodes, alerts, system, ws
+from api.routers import nodes, alerts, system, ws, sensor_data
 
 app.include_router(nodes.router)
 app.include_router(alerts.router)
 app.include_router(system.router)
 app.include_router(ws.router)
+app.include_router(sensor_data.router)
 
 # ── Root endpoint ─────────────────────────────────────────────────────────────
 @app.get("/", tags=["System"])

@@ -75,6 +75,10 @@ UrbanPulse is a low-cost, wireless, multi-node Structural Health Monitoring (SHM
 
 ## MQTT Contract (Interface with Firmware)
 
+> **Note**: The ESP32 gateway node actually uses HTTP POST, not MQTT.
+> See § HTTP Contract below for the live hardware interface.
+> The MQTT pipeline is retained for mock/testing via `mock_publisher.py --transport mqtt`.
+
 ### Topics (Inbound — node → backend)
 
 ```
@@ -127,6 +131,67 @@ urbanpulse/alerts
   "reason": "piezo_peak_amp_exceeded"
 }
 ```
+
+---
+
+## HTTP Contract (Interface with Firmware — Live Hardware)
+
+The ESP32 gateway node (`gateway_node.ino`) bypasses MQTT and sends data directly to the FastAPI backend via HTTP POST. This is the primary hardware interface.
+
+### Endpoint
+
+```
+POST /api/sensor-data
+Content-Type: application/json
+```
+
+### Payload (JSON) — flat structure matching firmware `SensorPacket`:
+
+```json
+{
+  "node_id": 1,
+  "timestamp": 1714123456789,
+  "mpu_dominant_freq": 12.34,
+  "mpu_peak_amplitude": 0.0321,
+  "mpu_spectral_centroid": 18.75,
+  "mpu_rms": 0.1234,
+  "piezo_dominant_freq": 340.2,
+  "piezo_peak_amplitude": 1.24,
+  "piezo_spectral_centroid": 410.5,
+  "piezo_rms": 0.5678
+}
+```
+
+| Field | Type | Range | Description |
+|-------|------|-------|-------------|
+| `node_id` | int | 1, 2, 3 | Node identifier (firmware uses integers) |
+| `timestamp` | int | ms | Millis since boot on ESP32 |
+| `mpu_dominant_freq` | float | 0–500 Hz | Peak frequency from MPU FFT |
+| `mpu_peak_amplitude` | float | g-force | Amplitude at dominant frequency |
+| `mpu_spectral_centroid` | float | Hz | Weighted mean frequency (MPU) |
+| `mpu_rms` | float | g | RMS vibration level (MPU) |
+| `piezo_dominant_freq` | float | 0–2500 Hz | Peak frequency from piezo FFT |
+| `piezo_peak_amplitude` | float | Volts | Amplitude at dominant frequency |
+| `piezo_spectral_centroid` | float | Hz | Weighted mean frequency (piezo) |
+| `piezo_rms` | float | V | RMS acoustic level (piezo) |
+
+### Response
+
+```json
+{
+  "status": "ok",
+  "alert": "NORMAL"
+}
+```
+
+The gateway uses the `alert` field to trigger its onboard buzzer:
+- `"NORMAL"` — no action
+- `"WARNING"` — 1 long buzzer pulse (500ms)
+- `"CRITICAL"` — 3 short buzzer pulses (200ms each)
+
+### Heartbeat
+
+The firmware does NOT send separate heartbeat messages. Node liveness is inferred from data POST arrival. The backend's heartbeat monitor (10s timeout) updates `last_seen` on every POST from the gateway, so the same OFFLINE detection logic works with HTTP mode.
 
 ---
 

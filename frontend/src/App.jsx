@@ -10,23 +10,15 @@ import RawDataGrid from "./components/RawDataGrid";
 import { Zap, RotateCcw } from "lucide-react";
 import { useStore } from "./store";
 
-const INITIAL_NODES = {
-  "Node A": { score: 100, readings: { accelX: "0.02g", accelY: "0.01g", piezo: "1.4V" } },
-  "Node B": { score: 100, readings: { accelX: "0.04g", accelY: "0.03g", piezo: "2.1V" } },
-  "Node C": { score: 100, readings: { accelX: "0.01g", accelY: "0.02g", piezo: "1.2V" } },
-};
-
-const SEED_EVENTS = [
-  { id: "s1", time: new Date().toLocaleTimeString("en-US", { hour12: false }), node: "System", level: "healthy", msg: "Telemetry stream connecting via Vite proxy → ws://localhost:8000/ws" },
-  { id: "s2", time: new Date().toLocaleTimeString("en-US", { hour12: false }), node: "System", level: "healthy", msg: "Sensors calibrated and baseline established" },
-];
-
 function now() {
   return new Date().toLocaleTimeString("en-US", { hour12: false });
 }
 
 function deriveSystemStatus(nodes) {
-  const scores = Object.values(nodes).map((n) => n.score);
+  const values = Object.values(nodes);
+  // If any node is waiting, show initializing
+  if (values.some((n) => n.state === "WAITING")) return "clear";
+  const scores = values.map((n) => n.score);
   const min = Math.min(...scores);
   if (min < 40) return "critical";
   if (min < 80) return "warning";
@@ -41,32 +33,113 @@ export default function App() {
   const activeNode = useStore((state) => state.activeNode);
   const healthHistory = useStore((state) => state.healthHistory);
   const wsConnected = useStore((state) => state.wsConnected);
-  
+  const thresholds = useStore((state) => state.thresholds);
+
   const updateNode = useStore((state) => state.updateNode);
   const addEvent = useStore((state) => state.addEvent);
   const setWsConnected = useStore((state) => state.setWsConnected);
   const setActiveNode = useStore((state) => state.setActiveNode);
   const setHealthHistory = useStore((state) => state.setHealthHistory);
+  const setThresholds = useStore((state) => state.setThresholds);
   const reset = useStore((state) => state.reset);
 
-  const requestRef = useRef();
+  const historyIntervalRef = useRef();
 
   // Map backend node_id ("A","B","C") → frontend node name ("Node A","Node B","Node C")
   const toNodeName = (id) => `Node ${id}`;
 
-  // Format raw sensor values for display
+  // Format raw sensor values for display — use RMS from firmware when raw values are 0
   const formatReading = (payload) => ({
-    accelX: payload?.mpu?.raw_x != null ? `${payload.mpu.raw_x.toFixed(3)}g` : "—",
-    accelY: payload?.mpu?.raw_y != null ? `${Math.abs(payload.mpu.raw_y).toFixed(3)}g` : "—",
-    piezo:  payload?.piezo?.raw_adc != null ? `${(payload.piezo.raw_adc / 410).toFixed(1)}V` : "—",
+    accelX: payload?.mpu?.raw_x != null && payload.mpu.raw_x !== 0 ? `${payload.mpu.raw_x.toFixed(3)}g` : 
+            payload?.mpu?.rms != null ? `${payload.mpu.rms.toFixed(3)}g` : "—",
+    accelY: payload?.mpu?.raw_y != null && payload.mpu.raw_y !== 0 ? `${Math.abs(payload.mpu.raw_y).toFixed(3)}g` : "—",
+    piezo:  payload?.piezo?.raw_adc != null && payload.piezo.raw_adc !== 0 ? `${(payload.piezo.raw_adc / 410).toFixed(1)}V` : 
+            payload?.piezo?.rms != null ? `${(payload.piezo.rms * 3.3).toFixed(2)}V` : "—",
   });
 
+  // Extract FFT features from payload for the waveform visualization
+  const extractFFT = (payload) => ({
+    mpu_dom_freq: payload?.mpu?.dom_freq ?? 0,
+    mpu_peak_amp: payload?.mpu?.peak_amp ?? 0,
+    mpu_centroid: payload?.mpu?.spectral_centroid ?? 0,
+    piezo_dom_freq: payload?.piezo?.dom_freq ?? 0,
+    piezo_peak_amp: payload?.piezo?.peak_amp ?? 0,
+    piezo_centroid: payload?.piezo?.spectral_centroid ?? 0,
+  });
+
+  // ── Fetch thresholds from backend on mount ──
   useEffect(() => {
-    // Use relative URL so it routes through the Vite dev-server proxy (/ws → ws://localhost:8000/ws)
+    fetch("/api/config/thresholds")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setThresholds(data); })
+      .catch(() => {});
+  }, [setThresholds]);
+
+  // ── Fetch health history from REST API every 5s ──
+  useEffect(() => {
+    const NODE_IDS = ["1", "2", "3"];
+    const NODE_NAMES = ["Node 1", "Node 2", "Node 3"];
+
+    const fetchHistory = async () => {
+      try {
+        // Get all history points for all nodes, then merge by timestamp
+        const allRaw = [];
+        for (let i = 0; i < NODE_IDS.length; i++) {
+          const res = await fetch(`/api/nodes/${NODE_IDS[i]}/history?minutes=10`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          data.forEach((pt) => {
+            allRaw.push({ ts: pt.ts, nodeName: NODE_NAMES[i], score: pt.score });
+          });
+        }
+        // Group by timestamp and merge into single data point per row
+        if (allRaw.length > 0) {
+          allRaw.sort((a, b) => a.ts - b.ts);
+          // Group readings into 3-second buckets so all 3 nodes merge
+          const BUCKET_MS = 6000;
+          const buckets = {};
+          allRaw.forEach((pt) => {
+            const bucketKey = Math.floor(pt.ts / BUCKET_MS) * BUCKET_MS;
+            if (!buckets[bucketKey]) {
+              buckets[bucketKey] = { time: new Date(bucketKey).toLocaleTimeString("en-US", { hour12: false }) };
+            }
+            // Only keep the latest score per node per bucket
+            buckets[bucketKey][pt.nodeName] = pt.score;
+          });
+          const merged = Object.values(buckets).slice(-60);
+          setHealthHistory(merged);
+        }
+      } catch {
+        // Backend not ready yet
+      }
+    };
+
+    fetchHistory();
+    const interval = setInterval(fetchHistory, 5000);
+    return () => clearInterval(interval);
+  }, [setHealthHistory]);
+
+  // ── WebSocket connection ──
+  useEffect(() => {
     const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${wsProto}//${window.location.host}/ws`;
     let ws;
-    let pendingUpdates = {}; // keyed by nodeName, deduplicated
+    let pendingUpdates = {};
+    let flushTimer = null;
+
+    // Flush pending updates every 100ms instead of RAF (RAF pauses when tab hidden)
+    const startFlusher = () => {
+      flushTimer = setInterval(() => {
+        const keys = Object.keys(pendingUpdates);
+        if (keys.length > 0) {
+          keys.forEach((nodeName) => {
+            const u = pendingUpdates[nodeName];
+            updateNode(nodeName, { score: u.score, severity: u.severity, readings: u.readings, fft: u.fft });
+          });
+          pendingUpdates = {};
+        }
+      }, 100);
+    };
 
     const connect = () => {
       ws = new WebSocket(wsUrl);
@@ -87,10 +160,19 @@ export default function App() {
           const msg = JSON.parse(event.data);
 
           if (msg.type === "snapshot") {
-            // Initial state dump from backend
+            // Initial state dump from backend — apply directly, no delay
+            const curNodes = useStore.getState().nodes;
             (msg.nodes || []).forEach((n) => {
               const nodeName = toNodeName(n.node_id);
-              updateNode(nodeName, { score: n.last_health_score ?? 100 });
+              // Keep WAITING state for 1.5s before showing ONLINE
+              const existingState = curNodes[nodeName]?.state;
+              if (existingState === "WAITING") {
+                setTimeout(() => {
+                  updateNode(nodeName, { score: n.last_health_score ?? 100, state: n.state ?? "ONLINE", severity: "NORMAL" });
+                }, 1500);
+              } else {
+                updateNode(nodeName, { score: n.last_health_score ?? 100, state: n.state ?? "ONLINE", severity: "NORMAL" });
+              }
             });
             (msg.alerts || []).slice(0, 5).forEach((a) => {
               addEvent({
@@ -108,7 +190,9 @@ export default function App() {
             pendingUpdates[nodeName] = {
               nodeName,
               score: d.health_score,
+              severity: d.severity,
               readings: formatReading(d.payload),
+              fft: extractFFT(d.payload),
             };
 
           } else if (msg.type === "alert") {
@@ -124,11 +208,11 @@ export default function App() {
           } else if (msg.type === "node_update") {
             const d = msg.data;
             const nodeName = toNodeName(d.node_id);
-            // Only update score from ONLINE heartbeats — OFFLINE just means
-            // no recent heartbeat and should NOT override a live reading score.
-            if (d.state === "ONLINE") {
-              updateNode(nodeName, { score: d.last_health_score ?? 100 });
-            }
+            updateNode(nodeName, {
+              state: d.state,
+              severity: d.state === "ONLINE" ? "NORMAL" : undefined,
+              score: d.state === "ONLINE" ? (d.last_health_score ?? 100) : undefined,
+            });
           }
         } catch (e) {
           console.warn("WS parse error:", e);
@@ -142,68 +226,34 @@ export default function App() {
       ws.onerror = () => ws.close();
     };
 
-    // RAF-based batch flusher — applies deduplicated updates each frame
-    const processUpdates = () => {
-      const keys = Object.keys(pendingUpdates);
-      if (keys.length > 0) {
-        keys.forEach((nodeName) => {
-          const u = pendingUpdates[nodeName];
-          updateNode(nodeName, { score: u.score, readings: u.readings });
-        });
-        pendingUpdates = {};
-      }
-      requestRef.current = requestAnimationFrame(processUpdates);
-    };
-
     connect();
-    requestRef.current = requestAnimationFrame(processUpdates);
+    startFlusher();
 
     return () => {
       ws?.close();
-      cancelAnimationFrame(requestRef.current);
+      if (flushTimer) clearInterval(flushTimer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const systemStatus = deriveSystemStatus(nodes);
-  const faultActive = Object.values(nodes).some(n => n.score < 40);
+  const faultActive = Object.values(nodes).some(n => n.state === "ONLINE" && n.score < 40);
 
+  const nodeNames = ["Node 1", "Node 2", "Node 3"];
   const nodeScores = {};
   Object.entries(nodes).forEach(([name, data]) => {
     nodeScores[name] = data.score;
   });
 
-  useEffect(() => {
-    let lastTime = Date.now();
-    const updateHistory = () => {
-      const nowTime = Date.now();
-      if (nowTime - lastTime >= 1000) {
-        const currentNodes = useStore.getState().nodes;
-        const newData = {
-          time: now(),
-          "Node A": currentNodes["Node A"].score,
-          "Node B": currentNodes["Node B"].score,
-          "Node C": currentNodes["Node C"].score,
-        };
-        const currentHistory = useStore.getState().healthHistory;
-        setHealthHistory([...currentHistory.slice(-29), newData]);
-        lastTime = nowTime;
-      }
-      requestRef.current = requestAnimationFrame(updateHistory);
-    };
-    
-    const frameId = requestAnimationFrame(updateHistory);
-    return () => cancelAnimationFrame(frameId);
-  }, []);
-
   const simulateAlert = useCallback(() => {
     eventCounter++;
-    const targetNodes = ["Node A", "Node B", "Node C"];
-    const targetNode = targetNodes[Math.floor(Math.random() * targetNodes.length)];
-    const nodeIndex = targetNodes.indexOf(targetNode);
+    const targetNode = nodeNames[Math.floor(Math.random() * nodeNames.length)];
+    const nodeIndex = nodeNames.indexOf(targetNode);
     updateNode(targetNode, {
+      state: "ONLINE",
       score: 35,
       readings: { accelX: "0.87g", accelY: "0.85g", piezo: "4.5V" },
+      fft: { mpu_dom_freq: 18.0, mpu_peak_amp: 0.85, mpu_centroid: 25.0, piezo_dom_freq: 480, piezo_peak_amp: 2500, piezo_centroid: 580 },
     });
     addEvent({
       id: `sim-${eventCounter}`,
@@ -226,6 +276,8 @@ export default function App() {
               key={name}
               name={name}
               score={data.score}
+              state={data.state}
+              severity={data.severity}
               readings={data.readings}
             />
           ))}
@@ -236,7 +288,9 @@ export default function App() {
             <FFTWaveform
               activeNode={activeNode}
               onNodeChange={setActiveNode}
-              faultActive={nodes[["Node A", "Node B", "Node C"][activeNode]].score < 40}
+              faultActive={nodes[nodeNames[activeNode]].score < 40}
+              fftData={nodes[nodeNames[activeNode]].fft}
+              thresholds={thresholds}
             />
           </div>
           <div className="col-span-2 min-h-0">
@@ -265,7 +319,7 @@ export default function App() {
           borderTop: "1px solid #334155",
         }}
       >
-        <Footer wsConnected={wsConnected} />
+        <Footer wsConnected={wsConnected} nodes={nodes} />
 
         <div className="flex items-center gap-2">
           <button

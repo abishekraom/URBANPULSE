@@ -1,5 +1,5 @@
 import React from "react";
-import { Cpu, Wifi } from "lucide-react";
+import { Cpu, Wifi, WifiOff } from "lucide-react";
 
 const STATUS_CONFIG = {
   healthy: {
@@ -14,9 +14,19 @@ const STATUS_CONFIG = {
     hex: "#e11d48",
     label: "CRITICAL",
   },
+  offline: {
+    hex: "#64748b",
+    label: "OFFLINE",
+  },
+  waiting: {
+    hex: "#334155",
+    label: "WAITING",
+  },
 };
 
-function getStatus(score) {
+function getStatus(score, state) {
+  if (state === "WAITING") return "waiting";
+  if (state === "OFFLINE") return "offline";
   if (score >= 80) return "healthy";
   if (score >= 40) return "warning";
   return "critical";
@@ -25,28 +35,40 @@ function getStatus(score) {
 export default React.memo(function NodeCard({
   name,
   score = 92,
-  readings = { accelX: "0.02g", accelY: "0.01g", piezo: "1.4V" },
+  state = "ONLINE",
+  severity = "NORMAL",
+  readings = { accelX: "—", accelY: "—", piezo: "—" },
 }) {
-  const status = getStatus(score);
-  const color = STATUS_CONFIG[status].hex;
+  const isOnline = state !== "OFFLINE" && state !== "WAITING";
+  // Use backend severity when available, fall back to score-based status
+  const status = !isOnline ? state.toLowerCase() : (severity === "CRITICAL" ? "critical" : severity === "WARNING" ? "warning" : score >= 80 ? "healthy" : score >= 40 ? "warning" : "critical");
+  const color = STATUS_CONFIG[status]?.hex || "#334155";
+
+  // Gauge always shows 0 when offline
+  const displayScore = isOnline ? score : 0;
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (score / 100) * circumference;
+  const strokeDashoffset = circumference - (displayScore / 100) * circumference;
 
   return (
     <div
       id={`node-card-${name.toLowerCase().replace(/\s/g, "-")}`}
       className="card-glass p-5 flex flex-col items-center gap-3 animate-slide-in cursor-pointer"
+      style={{ opacity: isOnline ? 1 : 0.6 }}
     >
       <div className="w-full flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Cpu size={14} strokeWidth={1.5} style={{ color: "#06b6d4" }} />
+          <Cpu size={14} strokeWidth={1.5} style={{ color: isOnline ? "#06b6d4" : "#64748b" }} />
           <span className="text-xs font-semibold tracking-wider uppercase text-[var(--color-text-secondary)]">
             {name}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Wifi size={12} strokeWidth={1.5} style={{ color }} />
+          {isOnline ? (
+            <Wifi size={12} strokeWidth={1.5} style={{ color }} />
+          ) : (
+            <WifiOff size={12} strokeWidth={1.5} style={{ color: "#64748b" }} />
+          )}
           <span
             className="text-[10px] font-mono font-medium"
             style={{ color }}
@@ -84,19 +106,19 @@ export default React.memo(function NodeCard({
             className="text-2xl font-bold font-mono transition-colors duration-300"
             style={{ color }}
           >
-            {score}
+            {isOnline ? score : "—"}
           </span>
           <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
-            Health
+            {isOnline ? "Health" : "Offline"}
           </span>
         </div>
       </div>
 
       <div className="w-full grid grid-cols-3 gap-1">
         {[
-          { label: "Accel X", value: readings.accelX, id: `${name}-accelX` },
-          { label: "Accel Y", value: readings.accelY, id: `${name}-accelY` },
-          { label: "Piezo", value: readings.piezo, id: `${name}-piezo` },
+          { label: "Accel X", value: isOnline ? readings.accelX : "—", id: `${name}-accelX` },
+          { label: "Accel Y", value: isOnline ? readings.accelY : "—", id: `${name}-accelY` },
+          { label: "Piezo", value: isOnline ? readings.piezo : "—", id: `${name}-piezo` },
         ].map((stat) => (
           <div
             key={stat.label}

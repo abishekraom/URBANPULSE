@@ -1,23 +1,28 @@
 import React, { useState, useEffect } from "react";
-import { Wifi, WifiOff, Clock, Gauge, Zap } from "lucide-react";
+import { Wifi, WifiOff, Clock, Gauge, Zap, Activity } from "lucide-react";
 
-export default React.memo(function Footer({ wsConnected = false }) {
-  const [uptime, setUptime] = useState(0);
-  const [latency, setLatency] = useState({ A: 12, B: 18, C: 9 });
+export default React.memo(function Footer({ wsConnected = false, nodes = {} }) {
+  const [health, setHealth] = useState({
+    uptime_s: 0,
+    total_packets: 0,
+    last_packet_age_ms: 0,
+  });
 
+  // Poll /api/health every 5s for real backend metrics
   useEffect(() => {
-    const start = Date.now();
-    const interval = setInterval(() => {
-      setUptime(Math.floor((Date.now() - start) / 1000));
-      // Randomize latency slightly for realism
-      if (Math.random() > 0.4) {
-        setLatency((prev) => ({
-          A: Math.max(5, prev.A + Math.floor(Math.random() * 5 - 2)),
-          B: Math.max(5, prev.B + Math.floor(Math.random() * 5 - 2)),
-          C: Math.max(5, prev.C + Math.floor(Math.random() * 5 - 2)),
-        }));
+    const fetchHealth = async () => {
+      try {
+        const res = await fetch("/api/health");
+        if (res.ok) {
+          const data = await res.json();
+          setHealth(data);
+        }
+      } catch {
+        // Backend not reachable — use previous values
       }
-    }, 1000);
+    };
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -28,39 +33,63 @@ export default React.memo(function Footer({ wsConnected = false }) {
     return `${h}:${m}:${s}`;
   };
 
-  const nodes = [
-    { name: "Node A", connected: wsConnected, latency: wsConnected ? `${latency.A}ms` : "---" },
-    { name: "Node B", connected: wsConnected, latency: wsConnected ? `${latency.B}ms` : "---" },
-    { name: "Node C", connected: wsConnected, latency: wsConnected ? `${latency.C}ms` : "---" },
-  ];
+  const formatPacketAge = (ms) => {
+    if (ms === 0) return "—";
+    if (ms < 1000) return `${ms}ms ago`;
+    if (ms < 60000) return `${Math.floor(ms / 1000)}s ago`;
+    return `${Math.floor(ms / 60000)}m ago`;
+  };
+
+  // Build per-node status from WebSocket node updates
+  const nodeEntries = Object.entries(nodes);
+  const nodeStatuses = nodeEntries.map(([name, data]) => ({
+    name,
+    connected: wsConnected && data.state !== "OFFLINE",
+    score: data.score ?? 100,
+  }));
 
   return (
     <div className="flex items-center gap-6">
       {/* Node connection indicators */}
       <div className="flex items-center gap-4">
-        {nodes.map((n) => (
-          <div key={n.name} className="flex items-center gap-1.5">
-            {n.connected ? (
-              <Wifi size={10} strokeWidth={1.5} style={{ color: "#22c55e" }} />
-            ) : (
-              <WifiOff size={10} strokeWidth={1.5} style={{ color: "#ef4444" }} />
-            )}
-            <span className="text-[10px] font-mono text-[var(--color-text-secondary)]">
-              {n.name}
-            </span>
-            <span className="text-[9px] font-mono text-[var(--color-text-muted)]">
-              {n.connected ? n.latency : "disconnected"}
-            </span>
-          </div>
-        ))}
+        {nodeStatuses.length > 0 ? (
+          nodeStatuses.map((n) => (
+            <div key={n.name} className="flex items-center gap-1.5">
+              {n.connected ? (
+                <Wifi size={10} strokeWidth={1.5} style={{ color: "#22c55e" }} />
+              ) : (
+                <WifiOff size={10} strokeWidth={1.5} style={{ color: "#ef4444" }} />
+              )}
+              <span className="text-[10px] font-mono text-[var(--color-text-secondary)]">
+                {n.name}
+              </span>
+              <span
+                className="text-[9px] font-mono"
+                style={{ color: n.connected ? "#22c55e" : "#ef4444" }}
+              >
+                {n.connected ? `${n.score}%` : "offline"}
+              </span>
+            </div>
+          ))
+        ) : (
+          <span className="text-[9px] font-mono text-[var(--color-text-muted)]">
+            No node data
+          </span>
+        )}
       </div>
 
-      {/* Tech stats */}
+      {/* Real backend metrics */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5">
-          <Gauge size={10} strokeWidth={1.5} style={{ color: "#06b6d4" }} />
+          <Activity size={10} strokeWidth={1.5} style={{ color: "#06b6d4" }} />
           <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
-            1kHz sampling
+            {health.total_packets} packets
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Gauge size={10} strokeWidth={1.5} style={{ color: "#8b5cf6" }} />
+          <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
+            Last: {formatPacketAge(health.last_packet_age_ms)}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -72,7 +101,7 @@ export default React.memo(function Footer({ wsConnected = false }) {
         <div className="flex items-center gap-1.5">
           <Clock size={10} strokeWidth={1.5} style={{ color: "#64748b" }} />
           <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
-            Uptime {formatUptime(uptime)}
+            Uptime {formatUptime(health.uptime_s)}
           </span>
         </div>
       </div>

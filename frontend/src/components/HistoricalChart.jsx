@@ -32,6 +32,11 @@ export default React.memo(function HistoricalChart({ data = [] }) {
       </div>
 
       <div className="flex-1 min-h-0 relative">
+        {data.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-[11px] font-mono text-[var(--color-text-muted)]">
+            Waiting for telemetry data...
+          </div>
+        ) : (
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.3)" vertical={false} />
@@ -56,11 +61,12 @@ export default React.memo(function HistoricalChart({ data = [] }) {
                 borderRadius: "4px",
               }}
             />
-            <Line type="monotone" dataKey="Node A" stroke="#0ea5e9" strokeWidth={2} dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey="Node B" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey="Node C" stroke="#8b5cf6" strokeWidth={2} dot={false} isAnimationActive={false} />
+            <Line type="monotone" dataKey="Node 1" stroke="#0ea5e9" strokeWidth={2} dot={false} isAnimationActive={false} />
+            <Line type="monotone" dataKey="Node 2" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
+            <Line type="monotone" dataKey="Node 3" stroke="#8b5cf6" strokeWidth={2} dot={false} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
+        )}
       </div>
     </div>
   );
