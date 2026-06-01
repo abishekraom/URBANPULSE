@@ -23,6 +23,29 @@ logger = logging.getLogger("urbanpulse.sensor_data")
 router = APIRouter(prefix="/api", tags=["Hardware"])
 
 
+async def _update_baseline(app_state, node_id, internal_payload):
+    """Track running frequency baseline for deviation penalty."""
+    mpu_freq = internal_payload.get("mpu", {}).get("dom_freq", 0)
+    piezo_freq = internal_payload.get("piezo", {}).get("dom_freq", 0)
+
+    if mpu_freq <= 0 and piezo_freq <= 0:
+        return None
+
+    async with app_state.freq_baseline_lock:
+        bl = app_state.freq_baselines.get(node_id, {"mpu": 0.0, "piezo": 0.0, "samples": 0})
+        bl["samples"] += 1
+        n = bl["samples"]
+        if mpu_freq > 0:
+            bl["mpu"] = bl["mpu"] * ((n - 1) / n) + mpu_freq / n
+        if piezo_freq > 0:
+            bl["piezo"] = bl["piezo"] * ((n - 1) / n) + piezo_freq / n
+        app_state.freq_baselines[node_id] = bl
+
+        if bl["samples"] >= 10:
+            return bl["mpu"]
+    return None
+
+
 @router.post("/sensor-data")
 async def receive_sensor_data(request: Request):
     """Receive sensor reading from the ESP32 gateway via HTTP POST.
@@ -51,13 +74,17 @@ async def receive_sensor_data(request: Request):
     request.app.state.stats["total_packets"] += 1
     request.app.state.stats["last_packet_ts"] = int(time.time() * 1000)
 
+    # Frequency baseline for deviation penalty
+    baseline = await _update_baseline(request.app.state, node_id, internal)
+
     # Classify and score
     severity, reason = classify_reading(internal, config)
-    health_score = compute_health_score(internal, config)
+    health_score = compute_health_score(internal, config, baseline_freq=baseline)
 
     logger.info(
-        "HTTP ← Node %s | score=%d | severity=%s",
-        node_id, health_score, severity
+        "HTTP ← Node %s | score=%d | severity=%s%s",
+        node_id, health_score, severity,
+        f" | baseline={baseline:.1f}Hz" if baseline else ""
     )
 
     # Store reading
@@ -66,7 +93,7 @@ async def receive_sensor_data(request: Request):
     # Upsert node status
     upsert_node(node_id, "ONLINE", ts, health_score)
 
-    # Broadcast via WebSocket
+    # Broadcast via throttled WebSocket hub
     await hub.broadcast({
         "type": "reading",
         "data": {

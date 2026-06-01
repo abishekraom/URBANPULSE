@@ -46,6 +46,11 @@
     "publish_interval_s": 0.5,
     "fault_duration_s": 10,
     "fault_piezo_adc": 2500,
-    "fault_mpu_peak_amp_g": 1.2
+    "fault_mpu_peak_amp_g": 1.2,
+    "burst": {
+      "hz": 60,
+      "duration_s": 10,
+      "piezo_peak_v": 3.0
+    }
   }
 }

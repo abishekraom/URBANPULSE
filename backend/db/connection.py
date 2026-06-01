@@ -10,7 +10,7 @@ DB_PATH = Path(__file__).parent.parent / "urbanpulse.db"
 def setup_db():
     with get_db() as conn:
         cursor = conn.cursor()
-        
+
         # Create nodes table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS nodes (
@@ -20,7 +20,7 @@ def setup_db():
                 last_health_score INTEGER
             )
         """)
-        
+
         # Create readings table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS readings (
@@ -32,7 +32,7 @@ def setup_db():
                 payload_json TEXT
             )
         """)
-        
+
         # Create alerts table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS alerts (
@@ -43,12 +43,23 @@ def setup_db():
                 ts INTEGER
             )
         """)
-        
-        # Optional: Add indexes for faster queries
+
+        # Indexes for fast time-range queries
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_readings_node_ts ON readings (node_id, ts)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_readings_ts ON readings (ts)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_alerts_ts ON alerts (ts)")
-        
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_alerts_node_ts ON alerts (node_id, ts)")
+
         logger.info("Database setup complete.")
+
+        # Purge stale readings on startup
+        try:
+            from db.queries import purge_old_readings
+            deleted = purge_old_readings()
+            if deleted:
+                logger.info("Purged %d stale readings from database", deleted)
+        except Exception:
+            pass
 
 @contextmanager
 def get_db():
@@ -59,6 +70,8 @@ def get_db():
         # Enable WAL mode for high concurrency
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
+        # Increase cache size for better read performance
+        conn.execute("PRAGMA cache_size=-8000")  # 8MB cache
         yield conn
         conn.commit()
     except Exception as e:

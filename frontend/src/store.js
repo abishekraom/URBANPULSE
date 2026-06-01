@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+const MAX_EVENTS = 50;
+
 const INITIAL_NODES = {
   "Node 1": { score: 0, state: "WAITING", severity: "NORMAL", readings: { accelX: "—", accelY: "—", piezo: "—" }, fft: { mpu_dom_freq: 0, mpu_peak_amp: 0, mpu_centroid: 0, piezo_dom_freq: 0, piezo_peak_amp: 0, piezo_centroid: 0 } },
   "Node 2": { score: 0, state: "WAITING", severity: "NORMAL", readings: { accelX: "—", accelY: "—", piezo: "—" }, fft: { mpu_dom_freq: 0, mpu_peak_amp: 0, mpu_centroid: 0, piezo_dom_freq: 0, piezo_peak_amp: 0, piezo_centroid: 0 } },
@@ -45,7 +47,11 @@ export const useStore = create((set, get) => ({
     });
   },
 
-  addEvent: (event) => set((state) => ({ events: [event, ...state.events] })),
+  addEvent: (event) => set((state) => {
+    const next = [event, ...state.events];
+    if (next.length > MAX_EVENTS) next.length = MAX_EVENTS;
+    return { events: next };
+  }),
 
   setHealthHistory: (history) => set({ healthHistory: history }),
 
