@@ -22,6 +22,7 @@ from mqtt.publisher import MQTTPublisher
 from core.pipeline import process_queue
 from core.heartbeat import heartbeat_monitor
 from db.connection import get_db
+from ws.hub import hub
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -86,12 +87,17 @@ async def lifespan(app: FastAPI):
     # immediately fire OFFLINE for nodes that aren't live yet this session.
     with get_db() as conn:
         conn.execute("UPDATE nodes SET state='OFFLINE', last_seen=0")
+
+    # Initialize per-node frequency baselines for deviation penalty
+    app.state.freq_baselines = {}  # node_id -> {"mpu": float, "piezo": float, "samples": int}
+    app.state.freq_baseline_lock = asyncio.Lock()
+
     logger.info("✓ Node states reset for fresh session")
 
     app.state.config = config
     app.state.broker_ok = broker_ok
     app.state.queue = asyncio.Queue(maxsize=1000)
-    
+
     # Capture the RUNNING event loop (uvicorn's loop) — not the one at import time
     running_loop = asyncio.get_running_loop()
     app.state.ingester = MQTTIngester(config, app.state.queue, running_loop)
@@ -107,10 +113,17 @@ async def lifespan(app: FastAPI):
     # Heartbeat monitor always runs (covers both MQTT and HTTP nodes)
     app.state.heartbeat_task = asyncio.create_task(heartbeat_monitor(app.state))
 
+    # Start the throttled WebSocket broadcast loop
+    await hub.start_throttle(app.state)
+
     yield  # ← application runs here
 
     # ── Shutdown ─────────────────────────────────────────────────────────────
     logger.info("UrbanPulse Backend shutting down...")
+
+    # Stop WebSocket throttle loop first
+    await hub.stop_throttle()
+
     if hasattr(app.state, "ingester") and app.state.ingester is not None:
         app.state.ingester.stop()
     if hasattr(app.state, "publisher") and app.state.publisher is not None:
@@ -120,7 +133,7 @@ async def lifespan(app: FastAPI):
         app.state.pipeline_task.cancel()
     if hasattr(app.state, "heartbeat_task"):
         app.state.heartbeat_task.cancel()
-    
+
     logger.info("Goodbye.")
 
 
@@ -128,7 +141,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="UrbanPulse API",
     description="Structural Health Monitoring Backend — rule-based, offline-first",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -156,5 +169,5 @@ async def root():
     return {
         "service": "UrbanPulse",
         "status": "running",
-        "version": "1.0.0",
+        "version": "2.0.0",
     }

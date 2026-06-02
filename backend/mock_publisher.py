@@ -133,6 +133,36 @@ def generate_fault_http(node_id_int: int, config: dict) -> dict:
     }
 
 
+# ── High-frequency burst mode ─────────────────────────────────────────────────
+# Simulates real piezo data arriving fast (up to 60Hz) to test the throttling
+
+def generate_highfreq_http(node_id_int: int, burst: bool = False) -> dict:
+    """Generate a reading at ~60Hz (every 16ms)."""
+    mpu_dom_freq = random.uniform(8.0, 15.0)
+    piezo_dom_freq = random.uniform(200.0, 500.0)
+
+    if burst:
+        # Piezo burst: high amplitude, simulates real sensor chatter
+        mpu_peak_g = random.uniform(0.05, 0.15)
+        piezo_peak_v = random.uniform(1.5, 3.0)  # spikes up to 3V
+    else:
+        mpu_peak_g = random.uniform(0.01, 0.08)
+        piezo_peak_v = random.uniform(0.05, 0.4)
+
+    return {
+        "node_id": node_id_int,
+        "timestamp": int(time.time() * 1000),
+        "mpu_dominant_freq": mpu_dom_freq,
+        "mpu_peak_amplitude": round(mpu_peak_g * FFT_SCALE, 4),
+        "mpu_spectral_centroid": mpu_dom_freq * 1.4,
+        "mpu_rms": round(mpu_peak_g * 0.6, 4),
+        "piezo_dominant_freq": piezo_dom_freq,
+        "piezo_peak_amplitude": round(piezo_peak_v * FFT_SCALE, 4),
+        "piezo_spectral_centroid": piezo_dom_freq * 1.2,
+        "piezo_rms": round(piezo_peak_v * 0.5, 4),
+    }
+
+
 # ── Transport implementations ────────────────────────────────────────────────
 
 def run_mqtt(args, config):
@@ -192,7 +222,7 @@ def run_mqtt(args, config):
 
 
 def run_http(args, config):
-    publish_interval = config["mock"]["publish_interval_s"]
+    publish_interval = args.interval  # Use CLI argument
     fault_duration = config["mock"]["fault_duration_s"]
     server_url = f"http://{args.host}:{args.port}/api/sensor-data"
 
@@ -206,20 +236,50 @@ def run_http(args, config):
     # Map --node arg to integer
     fault_node_int = {"A": 1, "B": 2, "C": 3}.get(args.node, 2)
 
-    logger.info(f"HTTP mode — posting to {server_url}")
+    # High-frequency mode: burst config
+    burst_active = False
+    burst_start_time = 0
+    burst_duration = 10.0
+    burst_interval = 0.016  # ~60Hz burst
+
+    logger.info(f"HTTP mode — posting to {server_url} (interval={publish_interval}s)")
+
+    # Track real packet timing for stats
+    last_log_time = time.time()
+    packet_count = 0
 
     try:
         while True:
             current_time = time.time()
 
+            # Check fault mode
             if fault_active and current_time - fault_start_time > fault_duration:
                 fault_active = False
                 logger.info(f"← Node {fault_node_int} fault cleared")
 
+            # Check burst mode (high-frequency piezo simulation)
+            if args.mode == "burst":
+                if not burst_active:
+                    burst_active = True
+                    burst_start_time = current_time
+                    logger.info("🔥 BURST MODE — simulating high-frequency piezo data")
+                elif current_time - burst_start_time > burst_duration:
+                    burst_active = False
+                    logger.info("← Burst ended, returning to normal rate")
+                    # After burst, just sleep and exit
+                    time.sleep(1)
+                    break
+
+            # Select interval based on mode
+            current_interval = burst_interval if burst_active else publish_interval
+
             for node_id_int in node_ids_int:
                 is_faulted = fault_active and node_id_int == fault_node_int
 
-                if is_faulted:
+                if burst_active:
+                    packet = generate_highfreq_http(node_id_int, burst=True)
+                    severity = "BURST"
+                elif is_faulted:
                     packet = generate_fault_http(node_id_int, config)
                     severity = "CRITICAL"
                 else:
@@ -237,15 +297,33 @@ def run_http(args, config):
                     with urllib.request.urlopen(req, timeout=3) as resp:
                         resp_data = json.loads(resp.read().decode("utf-8"))
                         alert = resp_data.get("alert", "NORMAL")
-                        logger.info(
-                            f"→ HTTP {node_labels[node_id_int]} [{severity}] "
-                            f"mpu_amp={packet['mpu_peak_amplitude']:.3f}g "
-                            f"alert={alert}"
-                        )
+                        packet_count += 1
+                        if burst_active:
+                            # Quiet logging in burst mode to avoid spam
+                            if packet_count % 60 == 0:
+                                logger.info(
+                                    f"→ BURST [{packet_count} packets] "
+                                    f"Node {node_labels[node_id_int]} "
+                                    f"piezo_amp={packet['piezo_peak_amplitude']:.1f}"
+                                )
+                        else:
+                            logger.info(
+                                f"→ HTTP {node_labels[node_id_int]} [{severity}] "
+                                f"mpu_amp={packet['mpu_peak_amplitude']:.3f}g "
+                                f"alert={alert}"
+                            )
                 except Exception as e:
                     logger.warning(f"HTTP POST failed for {node_labels[node_id_int]}: {e}")
 
-            time.sleep(publish_interval)
+            # Log throughput periodically
+            if time.time() - last_log_time >= 5.0:
+                elapsed = time.time() - last_log_time
+                rate = packet_count / max(elapsed, 0.001)
+                logger.info(f"📊 Throughput: {packet_count} packets | {rate:.0f} pkts/s")
+                packet_count = 0
+                last_log_time = time.time()
+
+            time.sleep(current_interval)
 
     except KeyboardInterrupt:
         logger.info("Interrupted.")
@@ -255,11 +333,15 @@ def run_http(args, config):
 
 def main():
     parser = argparse.ArgumentParser(description="UrbanPulse Mock Publisher")
-    parser.add_argument("--mode", choices=["normal", "fault"], default="normal", help="Simulation mode")
+    parser.add_argument("--mode", choices=["normal", "fault", "burst"], default="normal",
+                        help="Simulation mode (burst = high-frequency piezo stress test)")
     parser.add_argument("--node", choices=["A", "B", "C"], default="B", help="Node to fault")
-    parser.add_argument("--transport", choices=["mqtt", "http"], default="mqtt", help="Transport protocol")
-    parser.add_argument("--host", default="localhost", help="Broker host (mqtt) or server host (http)")
+    parser.add_argument("--transport", choices=["mqtt", "http"], default="http",
+                        help="Transport protocol (default: http — matches real hardware)")
+    parser.add_argument("--host", default="127.0.0.1", help="Broker host (mqtt) or server host (http)")
     parser.add_argument("--port", type=int, default=None, help="Broker port (mqtt) or server port (http)")
+    parser.add_argument("--interval", type=float, default=None,
+                        help="Publish interval in seconds (default: 0.5 for normal, 0.016 for burst)")
     args = parser.parse_args()
 
     config = load_config()
@@ -270,6 +352,13 @@ def main():
             args.port = 1883
         else:
             args.port = 8000
+
+    # Default interval based on mode
+    if args.interval is None:
+        if args.mode == "burst":
+            args.interval = 0.5  # Normal interval between cycles (each cycle sends 3 nodes)
+        else:
+            args.interval = config["mock"]["publish_interval_s"]
 
     if args.transport == "mqtt":
         run_mqtt(args, config)

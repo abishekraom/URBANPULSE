@@ -8,6 +8,7 @@ import Footer from "./components/Footer";
 import HistoricalChart from "./components/HistoricalChart";
 import RawDataGrid from "./components/RawDataGrid";
 import { Zap, RotateCcw } from "lucide-react";
+import { shallow } from "zustand/shallow";
 import { useStore } from "./store";
 
 function now() {
@@ -28,10 +29,10 @@ function deriveSystemStatus(nodes) {
 let eventCounter = 100;
 
 export default function App() {
-  const nodes = useStore((state) => state.nodes);
-  const events = useStore((state) => state.events);
+  const nodes = useStore((state) => state.nodes, shallow);
+  const events = useStore((state) => state.events, shallow);
   const activeNode = useStore((state) => state.activeNode);
-  const healthHistory = useStore((state) => state.healthHistory);
+  const healthHistory = useStore((state) => state.healthHistory, shallow);
   const wsConnected = useStore((state) => state.wsConnected);
   const thresholds = useStore((state) => state.thresholds);
 
@@ -75,14 +76,21 @@ export default function App() {
       .catch(() => {});
   }, [setThresholds]);
 
-  // ── Fetch health history from REST API every 5s ──
+  // ── Fetch health history from REST API every 10s (reduced from 5s) ──
   useEffect(() => {
     const NODE_IDS = ["1", "2", "3"];
     const NODE_NAMES = ["Node 1", "Node 2", "Node 3"];
 
-    const fetchHistory = async () => {
+    // Track last fetch timestamp to throttle
+    let lastFetch = 0;
+
+    const fetchHistory = async (force) => {
+      // Throttle: don't fetch more than once per 5s (for browser idle)
+      const now = Date.now();
+      if (!force && now - lastFetch < 5000) return;
+      lastFetch = now;
+
       try {
-        // Get all history points for all nodes, then merge by timestamp
         const allRaw = [];
         for (let i = 0; i < NODE_IDS.length; i++) {
           const res = await fetch(`/api/nodes/${NODE_IDS[i]}/history?minutes=10`);
@@ -92,10 +100,8 @@ export default function App() {
             allRaw.push({ ts: pt.ts, nodeName: NODE_NAMES[i], score: pt.score });
           });
         }
-        // Group by timestamp and merge into single data point per row
         if (allRaw.length > 0) {
           allRaw.sort((a, b) => a.ts - b.ts);
-          // Group readings into 3-second buckets so all 3 nodes merge
           const BUCKET_MS = 6000;
           const buckets = {};
           allRaw.forEach((pt) => {
@@ -103,7 +109,6 @@ export default function App() {
             if (!buckets[bucketKey]) {
               buckets[bucketKey] = { time: new Date(bucketKey).toLocaleTimeString("en-US", { hour12: false }) };
             }
-            // Only keep the latest score per node per bucket
             buckets[bucketKey][pt.nodeName] = pt.score;
           });
           const merged = Object.values(buckets).slice(-60);
@@ -114,31 +119,52 @@ export default function App() {
       }
     };
 
-    fetchHistory();
-    const interval = setInterval(fetchHistory, 5000);
+    fetchHistory(true);
+    const interval = setInterval(() => fetchHistory(false), 10000);
     return () => clearInterval(interval);
   }, [setHealthHistory]);
 
-  // ── WebSocket connection ──
+  // ── WebSocket connection with RAF-based throttle (30fps cap) ──
   useEffect(() => {
     const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${wsProto}//${window.location.host}/ws`;
     let ws;
     let pendingUpdates = {};
-    let flushTimer = null;
+    let pendingAlerts = [];
+    let rafId = null;
+    let lastFlushTime = 0;
+    const FLUSH_INTERVAL_MS = 33; // ~30fps
 
-    // Flush pending updates every 100ms instead of RAF (RAF pauses when tab hidden)
-    const startFlusher = () => {
-      flushTimer = setInterval(() => {
-        const keys = Object.keys(pendingUpdates);
-        if (keys.length > 0) {
-          keys.forEach((nodeName) => {
-            const u = pendingUpdates[nodeName];
-            updateNode(nodeName, { score: u.score, severity: u.severity, readings: u.readings, fft: u.fft });
-          });
-          pendingUpdates = {};
-        }
-      }, 100);
+    // RAF-based flusher — only runs while tab is visible
+    const RAF_THROTTLE = 33; // ms between flushes
+
+    const flush = (timestamp) => {
+      rafId = requestAnimationFrame(flush);
+
+      const elapsed = timestamp - lastFlushTime;
+      if (elapsed < RAF_THROTTLE) return; // throttle
+
+      lastFlushTime = timestamp;
+
+      // Flush pending node updates
+      const keys = Object.keys(pendingUpdates);
+      if (keys.length > 0) {
+        const currentNodes = useStore.getState().nodes;
+        keys.forEach((nodeName) => {
+          const u = pendingUpdates[nodeName];
+          const cur = currentNodes[nodeName];
+          // Skip if nothing actually changed
+          if (cur && cur.score === u.score && cur.severity === u.severity) return;
+          updateNode(nodeName, { score: u.score, severity: u.severity, readings: u.readings, fft: u.fft });
+        });
+        pendingUpdates = {};
+      }
+
+      // Flush pending alerts (one per frame max to avoid layout thrash)
+      if (pendingAlerts.length > 0) {
+        const alert = pendingAlerts.shift();
+        addEvent(alert);
+      }
     };
 
     const connect = () => {
@@ -153,6 +179,9 @@ export default function App() {
           level: "healthy",
           msg: `WebSocket connected → ws://localhost:8000/ws (via Vite proxy)`,
         });
+        // Start RAF flusher
+        lastFlushTime = performance.now();
+        rafId = requestAnimationFrame(flush);
       };
 
       ws.onmessage = (event) => {
@@ -160,22 +189,26 @@ export default function App() {
           const msg = JSON.parse(event.data);
 
           if (msg.type === "snapshot") {
-            // Initial state dump from backend — apply directly, no delay
+            // Initial state dump — apply directly, batch in next RAF
             const curNodes = useStore.getState().nodes;
             (msg.nodes || []).forEach((n) => {
               const nodeName = toNodeName(n.node_id);
-              // Keep WAITING state for 1.5s before showing ONLINE
               const existingState = curNodes[nodeName]?.state;
               if (existingState === "WAITING") {
                 setTimeout(() => {
                   updateNode(nodeName, { score: n.last_health_score ?? 100, state: n.state ?? "ONLINE", severity: "NORMAL" });
                 }, 1500);
               } else {
-                updateNode(nodeName, { score: n.last_health_score ?? 100, state: n.state ?? "ONLINE", severity: "NORMAL" });
+                pendingUpdates[nodeName] = {
+                  score: n.last_health_score ?? 100,
+                  severity: "NORMAL",
+                  readings: formatReading({}),
+                  fft: extractFFT({}),
+                };
               }
             });
             (msg.alerts || []).slice(0, 5).forEach((a) => {
-              addEvent({
+              pendingAlerts.push({
                 id: `snap-alert-${a.id}`,
                 time: new Date(a.ts).toLocaleTimeString("en-US", { hour12: false }),
                 node: toNodeName(a.node_id),
@@ -187,8 +220,13 @@ export default function App() {
           } else if (msg.type === "reading") {
             const d = msg.data;
             const nodeName = toNodeName(d.node_id);
+
+            // Backend now throttles to ~30fps, but we still use RAF
+            // to decouple React renders from WebSocket message rate
+            if (!pendingUpdates[nodeName]) {
+              pendingUpdates[nodeName] = {};
+            }
             pendingUpdates[nodeName] = {
-              nodeName,
               score: d.health_score,
               severity: d.severity,
               readings: formatReading(d.payload),
@@ -197,7 +235,7 @@ export default function App() {
 
           } else if (msg.type === "alert") {
             const d = msg.data;
-            addEvent({
+            pendingAlerts.push({
               id: `alert-${d.ts}-${d.node_id}`,
               time: new Date(d.ts).toLocaleTimeString("en-US", { hour12: false }),
               node: toNodeName(d.node_id),
@@ -208,6 +246,7 @@ export default function App() {
           } else if (msg.type === "node_update") {
             const d = msg.data;
             const nodeName = toNodeName(d.node_id);
+            // node_update is rare — apply directly
             updateNode(nodeName, {
               state: d.state,
               severity: d.state === "ONLINE" ? "NORMAL" : undefined,
@@ -221,17 +260,17 @@ export default function App() {
 
       ws.onclose = () => {
         setWsConnected(false);
+        if (rafId) cancelAnimationFrame(rafId);
         setTimeout(connect, 3000);
       };
       ws.onerror = () => ws.close();
     };
 
     connect();
-    startFlusher();
 
     return () => {
       ws?.close();
-      if (flushTimer) clearInterval(flushTimer);
+      if (rafId) cancelAnimationFrame(rafId);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

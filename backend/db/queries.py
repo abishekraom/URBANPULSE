@@ -3,6 +3,8 @@ import time
 from typing import List, Tuple, Dict
 from db.connection import get_db
 
+RETENTION_HOURS = 1  # readings older than this are purged on startup
+
 def upsert_node(node_id: str, state: str, last_seen: int, health_score: int):
     with get_db() as conn:
         conn.execute("""
@@ -33,19 +35,44 @@ def get_nodes() -> List[dict]:
         cursor = conn.execute("SELECT node_id, state, last_seen, last_health_score FROM nodes")
         return [dict(row) for row in cursor.fetchall()]
 
-def get_history(node_id: str, minutes: int) -> List[Tuple[int, int]]:
-    # Return the last 120 readings (the ESP32 sends millis() not epoch, 
-    # so time-based filtering won't match — use count-based approach)
+def get_history(node_id: str, minutes: int = 10, max_points: int = 200) -> List[Tuple[int, int]]:
+    """Return health score history for a node.
+
+    Uses time-based filtering when ts stores epoch ms (HTTP path / mock publisher).
+    Falls back to count-based (latest N readings) when time-based returns nothing
+    (e.g. firmware millis() values that don't overlap with real time).
+
+    The returned list is sorted chronologically (oldest first).
+    """
+    now_ms = int(time.time() * 1000)
+    cutoff_ms = now_ms - (minutes * 60 * 1000)
+
     with get_db() as conn:
+        # Try time-based filter first (epoch-millis path)
         cursor = conn.execute("""
-            SELECT ts, health_score 
-            FROM readings 
-            WHERE node_id = ?
+            SELECT ts, health_score
+            FROM readings
+            WHERE node_id = ? AND ts >= ?
             ORDER BY ts DESC
-            LIMIT 120
-        """, (node_id,))
-        result = [(row["ts"], row["health_score"]) for row in cursor.fetchall()]
-        result.reverse()
+            LIMIT ?
+        """, (node_id, cutoff_ms, max_points))
+
+        rows = [dict(row) for row in cursor.fetchall()]
+
+        # If time-based returned nothing, the ts values might be firmware millis()
+        # that are small and unrelated to epoch. Fall back to count-based.
+        if not rows:
+            cursor = conn.execute("""
+                SELECT ts, health_score
+                FROM readings
+                WHERE node_id = ?
+                ORDER BY ts DESC
+                LIMIT ?
+            """, (node_id, max_points))
+            rows = [dict(row) for row in cursor.fetchall()]
+
+        result = [(row["ts"], row["health_score"]) for row in rows]
+        result.reverse()  # oldest first
         return result
 
 def get_recent_readings(node_id: str, limit: int) -> List[dict]:
@@ -57,7 +84,7 @@ def get_recent_readings(node_id: str, limit: int) -> List[dict]:
             ORDER BY ts DESC
             LIMIT ?
         """, (node_id, limit))
-        
+
         results = []
         for row in cursor.fetchall():
             row_dict = dict(row)
@@ -86,3 +113,14 @@ def get_all_alerts() -> List[dict]:
             ORDER BY ts DESC
         """)
         return [dict(row) for row in cursor.fetchall()]
+
+def purge_old_readings(hours: int = RETENTION_HOURS):
+    """Delete readings older than `hours` hours to prevent unbounded SQLite growth."""
+    cutoff_ms = int(time.time() * 1000) - (hours * 3600 * 1000)
+    with get_db() as conn:
+        cursor = conn.execute("DELETE FROM readings WHERE ts < ? AND ts > 1000000000000", (cutoff_ms,))
+        # The ts > 1e12 guard prevents deleting firmware-millis rows (which are small numbers)
+        deleted = cursor.rowcount
+        if deleted:
+            conn.execute("PRAGMA optimize")
+        return deleted
