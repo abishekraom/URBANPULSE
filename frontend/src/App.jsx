@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import StatusBanner from "./components/StatusBanner";
 import NodeCard from "./components/NodeCard";
 import FFTWaveform from "./components/FFTWaveform";
@@ -10,6 +10,7 @@ import RawDataGrid from "./components/RawDataGrid";
 import { Zap, RotateCcw } from "lucide-react";
 import { shallow } from "zustand/shallow";
 import { useStore } from "./store";
+import { CANONICAL_NODE_IDS, CANONICAL_NODE_NAMES, toNodeIndex, toNodeName } from "./nodeIdentity";
 
 function now() {
   return new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -44,11 +45,6 @@ export default function App() {
   const setThresholds = useStore((state) => state.setThresholds);
   const reset = useStore((state) => state.reset);
 
-  const historyIntervalRef = useRef();
-
-  // Map backend node_id ("A","B","C") → frontend node name ("Node A","Node B","Node C")
-  const toNodeName = (id) => `Node ${id}`;
-
   // Format raw sensor values for display — use RMS from firmware when raw values are 0
   const formatReading = (payload) => ({
     accelX: payload?.mpu?.raw_x != null && payload.mpu.raw_x !== 0 ? `${payload.mpu.raw_x.toFixed(3)}g` : 
@@ -78,9 +74,6 @@ export default function App() {
 
   // ── Fetch health history from REST API every 10s (reduced from 5s) ──
   useEffect(() => {
-    const NODE_IDS = ["1", "2", "3"];
-    const NODE_NAMES = ["Node 1", "Node 2", "Node 3"];
-
     // Track last fetch timestamp to throttle
     let lastFetch = 0;
 
@@ -92,12 +85,12 @@ export default function App() {
 
       try {
         const allRaw = [];
-        for (let i = 0; i < NODE_IDS.length; i++) {
-          const res = await fetch(`/api/nodes/${NODE_IDS[i]}/history?minutes=10`);
+        for (let i = 0; i < CANONICAL_NODE_IDS.length; i++) {
+          const res = await fetch(`/api/nodes/${CANONICAL_NODE_IDS[i]}/history?minutes=10`);
           if (!res.ok) continue;
           const data = await res.json();
           data.forEach((pt) => {
-            allRaw.push({ ts: pt.ts, nodeName: NODE_NAMES[i], score: pt.score });
+            allRaw.push({ ts: pt.ts, nodeName: CANONICAL_NODE_NAMES[i], score: pt.score });
           });
         }
         if (allRaw.length > 0) {
@@ -133,12 +126,14 @@ export default function App() {
     let pendingAlerts = [];
     let rafId = null;
     let lastFlushTime = 0;
-    const FLUSH_INTERVAL_MS = 33; // ~30fps
+    let reconnectTimer = null;
+    let stopped = false;
 
     // RAF-based flusher — only runs while tab is visible
     const RAF_THROTTLE = 33; // ms between flushes
 
     const flush = (timestamp) => {
+      if (stopped) return;
       rafId = requestAnimationFrame(flush);
 
       const elapsed = timestamp - lastFlushTime;
@@ -154,8 +149,8 @@ export default function App() {
           const u = pendingUpdates[nodeName];
           const cur = currentNodes[nodeName];
           // Skip if nothing actually changed
-          if (cur && cur.score === u.score && cur.severity === u.severity) return;
-          updateNode(nodeName, { score: u.score, severity: u.severity, readings: u.readings, fft: u.fft });
+          if (cur && cur.score === u.score && cur.severity === u.severity && cur.state === u.state) return;
+          updateNode(nodeName, u);
         });
         pendingUpdates = {};
       }
@@ -168,6 +163,7 @@ export default function App() {
     };
 
     const connect = () => {
+      if (stopped) return;
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -193,6 +189,7 @@ export default function App() {
             const curNodes = useStore.getState().nodes;
             (msg.nodes || []).forEach((n) => {
               const nodeName = toNodeName(n.node_id);
+              if (!nodeName) return;
               const existingState = curNodes[nodeName]?.state;
               if (existingState === "WAITING") {
                 setTimeout(() => {
@@ -200,6 +197,7 @@ export default function App() {
                 }, 1500);
               } else {
                 pendingUpdates[nodeName] = {
+                  state: n.state ?? "ONLINE",
                   score: n.last_health_score ?? 100,
                   severity: "NORMAL",
                   readings: formatReading({}),
@@ -208,10 +206,12 @@ export default function App() {
               }
             });
             (msg.alerts || []).slice(0, 5).forEach((a) => {
+              const nodeName = toNodeName(a.node_id);
+              if (!nodeName) return;
               pendingAlerts.push({
                 id: `snap-alert-${a.id}`,
                 time: new Date(a.ts).toLocaleTimeString("en-US", { hour12: false }),
-                node: toNodeName(a.node_id),
+                node: nodeName,
                 level: a.severity === "CRITICAL" ? "critical" : "warning",
                 msg: a.reason,
               });
@@ -220,6 +220,7 @@ export default function App() {
           } else if (msg.type === "reading") {
             const d = msg.data;
             const nodeName = toNodeName(d.node_id);
+            if (!nodeName) return;
 
             // Backend now throttles to ~30fps, but we still use RAF
             // to decouple React renders from WebSocket message rate
@@ -227,6 +228,7 @@ export default function App() {
               pendingUpdates[nodeName] = {};
             }
             pendingUpdates[nodeName] = {
+              state: "ONLINE",
               score: d.health_score,
               severity: d.severity,
               readings: formatReading(d.payload),
@@ -235,10 +237,12 @@ export default function App() {
 
           } else if (msg.type === "alert") {
             const d = msg.data;
+            const nodeName = toNodeName(d.node_id);
+            if (!nodeName) return;
             pendingAlerts.push({
               id: `alert-${d.ts}-${d.node_id}`,
               time: new Date(d.ts).toLocaleTimeString("en-US", { hour12: false }),
-              node: toNodeName(d.node_id),
+              node: nodeName,
               level: d.severity === "CRITICAL" ? "critical" : "warning",
               msg: d.reason,
             });
@@ -246,6 +250,7 @@ export default function App() {
           } else if (msg.type === "node_update") {
             const d = msg.data;
             const nodeName = toNodeName(d.node_id);
+            if (!nodeName) return;
             // node_update is rare — apply directly
             updateNode(nodeName, {
               state: d.state,
@@ -261,14 +266,19 @@ export default function App() {
       ws.onclose = () => {
         setWsConnected(false);
         if (rafId) cancelAnimationFrame(rafId);
-        setTimeout(connect, 3000);
+        rafId = null;
+        if (!stopped) reconnectTimer = setTimeout(connect, 3000);
       };
-      ws.onerror = () => ws.close();
+      ws.onerror = () => {
+        if (!stopped) ws.close();
+      };
     };
 
     connect();
 
     return () => {
+      stopped = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
       if (rafId) cancelAnimationFrame(rafId);
     };
@@ -276,18 +286,20 @@ export default function App() {
   }, []);
 
   const systemStatus = deriveSystemStatus(nodes);
-  const faultActive = Object.values(nodes).some(n => n.state === "ONLINE" && n.score < 40);
 
-  const nodeNames = ["Node 1", "Node 2", "Node 3"];
-  const nodeScores = {};
-  Object.entries(nodes).forEach(([name, data]) => {
-    nodeScores[name] = data.score;
-  });
+  const nodeNames = CANONICAL_NODE_NAMES;
+  const nodeScores = useMemo(() => {
+    const scores = {};
+    Object.entries(nodes).forEach(([name, data]) => {
+      scores[name] = data.score;
+    });
+    return scores;
+  }, [nodes]);
 
   const simulateAlert = useCallback(() => {
     eventCounter++;
     const targetNode = nodeNames[Math.floor(Math.random() * nodeNames.length)];
-    const nodeIndex = nodeNames.indexOf(targetNode);
+    const nodeIndex = toNodeIndex(targetNode);
     updateNode(targetNode, {
       state: "ONLINE",
       score: 35,
@@ -302,7 +314,7 @@ export default function App() {
       msg: "Anomaly detected — harmonic shift at 120Hz · bolt loosening suspected",
     });
     setActiveNode(nodeIndex);
-  }, [updateNode, addEvent, setActiveNode]);
+  }, [nodeNames, updateNode, addEvent, setActiveNode]);
 
   return (
     <div className={`h-screen flex flex-col bg-[var(--color-bg-primary)] overflow-hidden transition-all duration-700`}>

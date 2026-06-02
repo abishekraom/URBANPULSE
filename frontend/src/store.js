@@ -1,14 +1,17 @@
 import { create } from "zustand";
+import { CANONICAL_NODE_NAMES } from "./nodeIdentity";
 
 const MAX_EVENTS = 50;
 
-const INITIAL_NODES = {
-  "Node 1": { score: 0, state: "WAITING", severity: "NORMAL", readings: { accelX: "—", accelY: "—", piezo: "—" }, fft: { mpu_dom_freq: 0, mpu_peak_amp: 0, mpu_centroid: 0, piezo_dom_freq: 0, piezo_peak_amp: 0, piezo_centroid: 0 } },
-  "Node 2": { score: 0, state: "WAITING", severity: "NORMAL", readings: { accelX: "—", accelY: "—", piezo: "—" }, fft: { mpu_dom_freq: 0, mpu_peak_amp: 0, mpu_centroid: 0, piezo_dom_freq: 0, piezo_peak_amp: 0, piezo_centroid: 0 } },
-  "Node 3": { score: 0, state: "WAITING", severity: "NORMAL", readings: { accelX: "—", accelY: "—", piezo: "—" }, fft: { mpu_dom_freq: 0, mpu_peak_amp: 0, mpu_centroid: 0, piezo_dom_freq: 0, piezo_peak_amp: 0, piezo_centroid: 0 } },
-};
+const EMPTY_NODE = { score: 0, state: "WAITING", severity: "NORMAL", readings: { accelX: "—", accelY: "—", piezo: "—" }, fft: { mpu_dom_freq: 0, mpu_peak_amp: 0, mpu_centroid: 0, piezo_dom_freq: 0, piezo_peak_amp: 0, piezo_centroid: 0 } };
 
-export const useStore = create((set, get) => ({
+const createInitialNodes = () => Object.fromEntries(
+  CANONICAL_NODE_NAMES.map((name) => [name, structuredClone(EMPTY_NODE)])
+);
+
+const INITIAL_NODES = createInitialNodes();
+
+export const useStore = create((set) => ({
   nodes: INITIAL_NODES,
   events: [
     { id: "s1", time: new Date().toLocaleTimeString("en-US", { hour12: false }), node: "System", level: "healthy", msg: "Dashboard initialized — waiting for telemetry..." },
@@ -25,8 +28,9 @@ export const useStore = create((set, get) => ({
   setThresholds: (thresholds) => set({ thresholds }),
 
   updateNode: (nodeName, data) => {
+    if (!nodeName || !CANONICAL_NODE_NAMES.includes(nodeName)) return;
     set((state) => {
-      const existing = state.nodes[nodeName] || INITIAL_NODES["Node 1"];
+      const existing = state.nodes[nodeName] || EMPTY_NODE;
       return {
         nodes: {
           ...state.nodes,
@@ -56,7 +60,7 @@ export const useStore = create((set, get) => ({
   setHealthHistory: (history) => set({ healthHistory: history }),
 
   reset: () => set({
-    nodes: INITIAL_NODES,
+    nodes: createInitialNodes(),
     activeNode: 0,
     healthHistory: [],
     events: [

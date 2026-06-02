@@ -103,9 +103,15 @@ async def process_queue(app_state):
 
                 # Handle alerts
                 if severity in ["WARNING", "CRITICAL"]:
-                    insert_alert(node_id, severity, reason or "Threshold exceeded", ts)
-                    publisher.publish_alert(node_id, severity, reason or "Threshold exceeded")
-                    logger.warning(f"Alert generated for {node_id}: {severity} ({reason})")
+                    alert_reason = reason or "Threshold exceeded"
+                    gate = getattr(app_state, "alert_gate", None)
+                    if gate is not None and not gate.should_emit(node_id, severity, alert_reason, ts):
+                        queue.task_done()
+                        continue
+
+                    insert_alert(node_id, severity, alert_reason, ts)
+                    publisher.publish_alert(node_id, severity, alert_reason)
+                    logger.warning(f"Alert generated for {node_id}: {severity} ({alert_reason})")
 
                     # Broadcast alert (passed through, not deduped)
                     await hub.broadcast({
@@ -113,7 +119,7 @@ async def process_queue(app_state):
                         "data": {
                             "node_id": node_id,
                             "severity": severity,
-                            "reason": reason or "Threshold exceeded",
+                            "reason": alert_reason,
                             "ts": ts
                         }
                     })
