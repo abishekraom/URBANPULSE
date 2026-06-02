@@ -233,8 +233,9 @@ def run_http(args, config):
     fault_start_time = time.time() if args.mode == "fault" else 0
     fault_active = args.mode == "fault"
 
-    # Map --node arg to integer
-    fault_node_int = {"A": 1, "B": 2, "C": 3}.get(args.node, 2)
+    # Map --node arg to canonical firmware integer ID. A/B/C are accepted as
+    # display-label aliases for the physical frame positions.
+    fault_node_int = {"1": 1, "2": 2, "3": 3, "A": 1, "B": 2, "C": 3}.get(args.node, 2)
 
     # High-frequency mode: burst config
     burst_active = False
@@ -335,7 +336,7 @@ def main():
     parser = argparse.ArgumentParser(description="UrbanPulse Mock Publisher")
     parser.add_argument("--mode", choices=["normal", "fault", "burst"], default="normal",
                         help="Simulation mode (burst = high-frequency piezo stress test)")
-    parser.add_argument("--node", choices=["A", "B", "C"], default="B", help="Node to fault")
+    parser.add_argument("--node", choices=["1", "2", "3", "A", "B", "C"], default="2", help="Node to fault")
     parser.add_argument("--transport", choices=["mqtt", "http"], default="http",
                         help="Transport protocol (default: http — matches real hardware)")
     parser.add_argument("--host", default="127.0.0.1", help="Broker host (mqtt) or server host (http)")
@@ -351,7 +352,7 @@ def main():
         if args.transport == "mqtt":
             args.port = 1883
         else:
-            args.port = 8000
+            args.port = 8001
 
     # Default interval based on mode
     if args.interval is None:

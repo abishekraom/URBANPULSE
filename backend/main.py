@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mqtt.ingester import MQTTIngester
 from mqtt.publisher import MQTTPublisher
+from core.alert_gate import AlertGate
 from core.pipeline import process_queue
 from core.heartbeat import heartbeat_monitor
 from db.connection import get_db
@@ -96,6 +97,7 @@ async def lifespan(app: FastAPI):
 
     app.state.config = config
     app.state.broker_ok = broker_ok
+    app.state.alert_gate = AlertGate(config.get("alerts", {}).get("cooldown_ms", 5000))
     app.state.queue = asyncio.Queue(maxsize=1000)
 
     # Capture the RUNNING event loop (uvicorn's loop) — not the one at import time

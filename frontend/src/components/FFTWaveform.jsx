@@ -7,7 +7,7 @@ const BIN_COUNT = 100;
 
 function makeSpectrum(data, fault, count) {
   var out = new Array(count);
-  for (var i = 0; i < count; i++) out[i] = 0.02;
+  for (let i = 0; i < count; i++) out[i] = 0.02;
   if (!data) return out;
   var mf = data.mpu_dom_freq;
   var ma = data.mpu_peak_amp;
@@ -19,14 +19,14 @@ function makeSpectrum(data, fault, count) {
   var pbin = Math.min(90, Math.max(30, Math.round(((pf - 100) / 400) * 60) + 30));
   var mn = Math.min(1, ma / 1.0);
   var pn = Math.min(1, pa / 3000);
-  for (var i = Math.max(0, mbin - 5); i < Math.min(count, mbin + 5); i++) {
+  for (let i = Math.max(0, mbin - 5); i < Math.min(count, mbin + 5); i++) {
     out[i] = Math.max(out[i], mn * Math.exp(-0.3 * (i - mbin) * (i - mbin)));
   }
-  for (var i = Math.max(0, pbin - 8); i < Math.min(count, pbin + 8); i++) {
+  for (let i = Math.max(0, pbin - 8); i < Math.min(count, pbin + 8); i++) {
     out[i] = Math.max(out[i], pn * Math.exp(-0.15 * (i - pbin) * (i - pbin)));
   }
   if (fault) {
-    for (var i = 65; i < 85; i++) {
+    for (let i = 65; i < 85; i++) {
       out[i] = Math.max(out[i] || 0, 0.85 * Math.exp(-0.08 * (i - 75) * (i - 75)));
     }
   }
@@ -49,24 +49,33 @@ function FFTWaveform(props) {
   var idleRef = useRef(true);
   var tickRef = useRef(0);
   var kickRef = useRef(null);
-  var lastDataMs = useRef(0);
 
-  faultRef.current = faultActive;
-  threshRef.current = thresholds;
+  useEffect(function() {
+    faultRef.current = faultActive;
+  }, [faultActive]);
+
+  useEffect(function() {
+    threshRef.current = thresholds;
+  }, [thresholds]);
 
   // When fftData changes: update target, reset tick, kick animation
-  var prevRef = useRef(null);
-  if (fftData !== prevRef.current) {
-    prevRef.current = fftData;
-    lastDataMs.current = Date.now();
+  useEffect(function() {
     var s = makeSpectrum(fftData, faultActive, BIN_COUNT);
-    for (var i = 0; i < BIN_COUNT; i++) targetRef.current[i] = s[i];
+    for (let i = 0; i < BIN_COUNT; i++) targetRef.current[i] = s[i];
     tickRef.current = 0;
     if (idleRef.current && canvasRef.current) {
       idleRef.current = false;
       if (kickRef.current) kickRef.current();
     }
-  }
+
+    var staleTimer = setTimeout(function() {
+      for (let i = 0; i < BIN_COUNT; i++) targetRef.current[i] = 0.02;
+      tickRef.current = 0;
+      if (kickRef.current) kickRef.current();
+    }, 15000);
+
+    return function() { clearTimeout(staleTimer); };
+  }, [fftData, faultActive]);
 
   var expandedCard = useStore(function(s) { return s.expandedCard; });
   var setExpandedCard = useStore(function(s) { return s.setExpandedCard; });
@@ -125,12 +134,12 @@ function FFTWaveform(props) {
 
       ctx.beginPath();
       ctx.moveTo(0, h);
-      for (var i = 0; i < BIN_COUNT; i++) ctx.lineTo(i * step, h - (dataRef.current[i] * h));
+      for (let i = 0; i < BIN_COUNT; i++) ctx.lineTo(i * step, h - (dataRef.current[i] * h));
       ctx.lineTo(w, h); ctx.closePath();
       ctx.fillStyle = fillC; ctx.fill();
 
       ctx.beginPath();
-      for (var i = 0; i < BIN_COUNT; i++) {
+      for (let i = 0; i < BIN_COUNT; i++) {
         var y = h - (dataRef.current[i] * h);
         if (i === 0) ctx.moveTo(0, y); else ctx.lineTo(i * step, y);
       }
@@ -139,7 +148,7 @@ function FFTWaveform(props) {
     }
 
     function hasSignal(arr) {
-      for (var i = 0; i < BIN_COUNT; i++) {
+      for (let i = 0; i < BIN_COUNT; i++) {
         if (arr[i] > 0.05) return true;
       }
       return false;
@@ -153,7 +162,7 @@ function FFTWaveform(props) {
       var anyMove = false;
       var tk = tickRef.current;
 
-      for (var i = 0; i < BIN_COUNT; i++) {
+      for (let i = 0; i < BIN_COUNT; i++) {
         var t = tgt[i] || 0;
         var c = dataRef.current[i] || 0;
         var diff = t - c;
@@ -167,7 +176,7 @@ function FFTWaveform(props) {
       if (anyMove && tk < 15) {
         rafRef.current = requestAnimationFrame(animate);
       } else {
-        for (var i = 0; i < BIN_COUNT; i++) dataRef.current[i] = tgt[i] || 0;
+        for (let i = 0; i < BIN_COUNT; i++) dataRef.current[i] = tgt[i] || 0;
         drawFrame();
         idleRef.current = true;
         // Start gentle idle breathing at 5fps
@@ -181,7 +190,7 @@ function FFTWaveform(props) {
       var count = 0;
       var maxIdle = 30; // 30 frames at 5fps = 6s then pause 2s
       function tick() {
-        for (var i = 0; i < BIN_COUNT; i++) {
+        for (let i = 0; i < BIN_COUNT; i++) {
           var c = dataRef.current[i] || 0;
           var noise = (Math.random() - 0.5) * 0.01;
           dataRef.current[i] = Math.max(0, Math.min(1, c + noise));
@@ -225,16 +234,9 @@ function FFTWaveform(props) {
   }, []);
 
   var activeFft = fftData || {};
-  var dataStale = (Date.now() - lastDataMs.current) > 15000;
-  var displayFreq = dataStale ? null : activeFft.mpu_dom_freq;
-  var displayAmp = dataStale ? null : activeFft.mpu_peak_amp;
-  var displayPiezo = dataStale ? null : activeFft.piezo_dom_freq;
-  // Decay canvas to flat when data is stale
-  if (dataStale) {
-    for (var i = 0; i < BIN_COUNT; i++) {
-      targetRef.current[i] = 0.02;
-    }
-  }
+  var displayFreq = activeFft.mpu_dom_freq;
+  var displayAmp = activeFft.mpu_peak_amp;
+  var displayPiezo = activeFft.piezo_dom_freq;
 
   return React.createElement("div", {
     id: "fft-waveform-panel",

@@ -24,14 +24,6 @@ const STATUS_CONFIG = {
   },
 };
 
-function getStatus(score, state) {
-  if (state === "WAITING") return "waiting";
-  if (state === "OFFLINE") return "offline";
-  if (score >= 80) return "healthy";
-  if (score >= 40) return "warning";
-  return "critical";
-}
-
 export default React.memo(function NodeCard({
   name,
   score = 92,

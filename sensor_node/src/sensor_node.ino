@@ -35,9 +35,12 @@
 #define PIEZO_SAMPLING_FREQ 5000 // Hz — 5kHz for piezo (acoustic)
 
 // ─── NODE IDENTITY ─────────────────────────────────────
-// *** CHANGE THIS for each node ***
-//   Node 2 = 2, Node 3 = 3
+// NODE_ID is supplied by PlatformIO build flags.
+//   pio run -e node2 → NODE_ID=2
+//   pio run -e node3 → NODE_ID=3
+#ifndef NODE_ID
 #define NODE_ID        2
+#endif
 
 // ─── WIFI (connect for ESP-NOW channel sync with gateway) ──
 const char* SENSOR_WIFI_SSID     = "DaEL";
@@ -115,7 +118,7 @@ float readMPU_XYZ() {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x3B); // ACCEL_XOUT_H
   Wire.endTransmission(false);
-  Wire.requestFrom(MPU_ADDR, 6, true);
+  Wire.requestFrom((uint8_t)MPU_ADDR, (size_t)6, true);
 
   int16_t rawX = (Wire.read() << 8) | Wire.read();
   int16_t rawY = (Wire.read() << 8) | Wire.read();

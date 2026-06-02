@@ -1,11 +1,12 @@
 import React from "react";
 import { Map, Maximize2, Minimize2 } from "lucide-react";
 import { useStore } from "../store";
+import { toDisplayNodeLabel, toNodeName } from "../nodeIdentity";
 
 const NODES = [
-  { id: "A", idx: 0, x: 25, y: 30 },
-  { id: "B", idx: 1, x: 55, y: 65 },
-  { id: "C", idx: 2, x: 80, y: 35 },
+  { id: "1", idx: 0, x: 25, y: 30 },
+  { id: "2", idx: 1, x: 55, y: 65 },
+  { id: "3", idx: 2, x: 80, y: 35 },
 ];
 
 const STATUS_HEX = {
@@ -120,7 +121,7 @@ export default React.memo(function StructuralMap({ activeNode = 0, nodeScores = 
           {/* Node markers */}
           {NODES.map((node) => {
             const isActive = node.idx === activeNode;
-            const nodeKey = `Node ${node.id}`;
+            const nodeKey = toNodeName(node.id);
             const score = nodeScores[nodeKey] ?? 90;
             const status = getStatus(score);
             const color = STATUS_HEX[status];
@@ -162,7 +163,7 @@ export default React.memo(function StructuralMap({ activeNode = 0, nodeScores = 
                   fontWeight={isActive ? "700" : "600"}
                   style={{ transition: "fill 0.3s ease, font-size 0.3s ease" }}
                 >
-                  Node {node.id}
+                  {toDisplayNodeLabel(node.id)}
                 </text>
 
                 {/* Active indicator text */}

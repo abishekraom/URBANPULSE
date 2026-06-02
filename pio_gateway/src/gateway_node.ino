@@ -95,9 +95,15 @@ unsigned long lastWifiAttempt = 0;
 unsigned long lastHTTPSend = 0;
 bool httpBusy = false;  // Prevent re-entrant HTTP calls
 
-// ESP-NOW incoming packet buffer
-SensorPacket incomingPkt;
-volatile bool hasIncomingPkt = false;
+// ESP-NOW incoming packet ring buffer.
+// The receive callback must stay non-blocking; HTTP is done later in loop().
+#define INCOMING_QUEUE_SIZE 8
+SensorPacket incomingQueue[INCOMING_QUEUE_SIZE];
+volatile uint8_t incomingHead = 0;
+volatile uint8_t incomingTail = 0;
+volatile uint8_t incomingCount = 0;
+volatile uint32_t droppedIncoming = 0;
+portMUX_TYPE incomingMux = portMUX_INITIALIZER_UNLOCKED;
 
 // ─── WiFi FUNCTIONS ───────────────────────────────────
 void connectWiFi() {
@@ -214,10 +220,32 @@ void sendToServer(SensorPacket &pkt) {
 // ─── ESP-NOW RECEIVE CALLBACK ──────────────────────────
 void onDataReceived(const uint8_t *mac_addr, const uint8_t *data, int len) {
   if (len == sizeof(SensorPacket)) {
-    // Buffer the packet — don't HTTP POST from interrupt context
-    memcpy(&incomingPkt, data, sizeof(incomingPkt));
-    hasIncomingPkt = true;
+    SensorPacket pkt;
+    memcpy(&pkt, data, sizeof(pkt));
+
+    portENTER_CRITICAL(&incomingMux);
+    if (incomingCount < INCOMING_QUEUE_SIZE) {
+      memcpy(&incomingQueue[incomingHead], &pkt, sizeof(pkt));
+      incomingHead = (incomingHead + 1) % INCOMING_QUEUE_SIZE;
+      incomingCount++;
+    } else {
+      droppedIncoming++;
+    }
+    portEXIT_CRITICAL(&incomingMux);
   }
+}
+
+bool popIncomingPacket(SensorPacket &pkt) {
+  bool hasPacket = false;
+  portENTER_CRITICAL(&incomingMux);
+  if (incomingCount > 0) {
+    memcpy(&pkt, &incomingQueue[incomingTail], sizeof(pkt));
+    incomingTail = (incomingTail + 1) % INCOMING_QUEUE_SIZE;
+    incomingCount--;
+    hasPacket = true;
+  }
+  portEXIT_CRITICAL(&incomingMux);
+  return hasPacket;
 }
 
 // ─── DATA LOGGING (CSV format to Serial) ──────────────
@@ -313,7 +341,7 @@ float readMPU_XYZ() {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x3B);
   Wire.endTransmission(false);
-  Wire.requestFrom(MPU_ADDR, 6, true);
+  Wire.requestFrom((uint8_t)MPU_ADDR, (size_t)6, true);
 
   int16_t rawX = (Wire.read() << 8) | Wire.read();
   int16_t rawY = (Wire.read() << 8) | Wire.read();
@@ -435,16 +463,26 @@ void loop() {
   // Check WiFi connection
   checkWiFi();
   
-  // Process any buffered ESP-NOW packets (not in interrupt context)
-  if (hasIncomingPkt) {
-    hasIncomingPkt = false;
-    if (incomingPkt.nodeId >= 1 && incomingPkt.nodeId <= 3) {
-      printDataCSV(incomingPkt);
-      checkThresholds(incomingPkt);
-      sendToServer(incomingPkt);
+  // Process queued ESP-NOW packets (not in interrupt context).
+  // Cap per loop so own-sensor sampling and WiFi maintenance cannot starve.
+  SensorPacket queuedPkt;
+  int processed = 0;
+  while (processed < 3 && popIncomingPacket(queuedPkt)) {
+    processed++;
+    if (queuedPkt.nodeId >= 1 && queuedPkt.nodeId <= 3) {
+      printDataCSV(queuedPkt);
+      checkThresholds(queuedPkt);
+      sendToServer(queuedPkt);
     }
   }
-  
+
+  if (droppedIncoming > 0) {
+    portENTER_CRITICAL(&incomingMux);
+    uint32_t dropped = droppedIncoming;
+    droppedIncoming = 0;
+    portEXIT_CRITICAL(&incomingMux);
+    Serial.printf("# [ESP-NOW] Dropped %lu packets (queue full)\n", dropped);
+  }
   // Sample own sensors every 500ms
   if (millis() - lastOwnSample > 500) {
     lastOwnSample = millis();

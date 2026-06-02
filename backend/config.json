@@ -35,6 +35,9 @@
     "publish_interval_s": 5,
     "offline_timeout_s": 15
   },
+  "alerts": {
+    "cooldown_ms": 5000
+  },
   "api": {
     "cors_origins": ["http://localhost:5173", "http://localhost:3000"],
     "default_data_limit": 50,
@@ -42,7 +45,7 @@
     "default_alert_limit": 20
   },
   "mock": {
-    "nodes": ["A", "B", "C"],
+    "nodes": ["1", "2", "3"],
     "publish_interval_s": 0.5,
     "fault_duration_s": 10,
     "fault_piezo_adc": 2500,
