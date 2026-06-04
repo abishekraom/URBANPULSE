@@ -11,16 +11,38 @@
   },
   "thresholds": {
     "mpu": {
-      "warning_peak_amp_g": 0.15,
-      "critical_peak_amp_g": 0.4
+      "warning_peak_amp_g": 1.8,
+      "critical_peak_amp_g": 2.8
     },
     "piezo": {
       "warning_adc": 800,
       "critical_adc": 2000,
-      "warning_peak_amp_v": 0.6,
-      "critical_peak_amp_v": 1.5
+      "warning_peak_amp_v": 0.3,
+      "critical_peak_amp_v": 0.8
     },
-    "frequency_deviation_pct": 20
+    "frequency_deviation_pct": 20,
+    "node_overrides": {
+      "1": {
+        "mpu": {
+          "warning_peak_amp_g": 0.8,
+          "critical_peak_amp_g": 1.6
+        },
+        "piezo": {
+          "warning_peak_amp_v": 3.5,
+          "critical_peak_amp_v": 6.0
+        }
+      },
+      "2": {
+        "mpu": {
+          "warning_peak_amp_g": 1.8,
+          "critical_peak_amp_g": 2.8
+        },
+        "piezo": {
+          "warning_peak_amp_v": 0.24,
+          "critical_peak_amp_v": 0.6
+        }
+      }
+    }
   },
   "health_score": {
     "green_min": 70,

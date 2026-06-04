@@ -1,12 +1,16 @@
+from core.thresholds import thresholds_for_node
+
+
 def compute_health_score(payload: dict, config: dict, baseline_freq: float = None) -> int:
     score = 100
 
+    node_id = payload.get("node_id", "")
     mpu_peak_amp = payload.get("mpu", {}).get("peak_amp", 0)
     piezo_raw_adc = payload.get("piezo", {}).get("raw_adc", 0)
     piezo_peak_amp = payload.get("piezo", {}).get("peak_amp", 0)
     mpu_dom_freq = payload.get("mpu", {}).get("dom_freq", 0)
 
-    thresholds = config.get("thresholds", {})
+    thresholds = thresholds_for_node(config, node_id)
     health_config = config.get("health_score", {})
 
     mpu_thresh = thresholds.get("mpu", {})

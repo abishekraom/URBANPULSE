@@ -79,8 +79,8 @@ async def lifespan(app: FastAPI):
         logger.warning("  Backend is running but MQTT ingestion is INACTIVE.")
 
     logger.info("✓ Configuration loaded from config.json")
-    logger.info("✓ FastAPI ready — http://localhost:8000")
-    logger.info("  Docs: http://localhost:8000/docs")
+    logger.info("✓ FastAPI ready — canonical dev port: http://localhost:8001")
+    logger.info("  Docs: http://localhost:8001/docs")
     logger.info("=" * 60)
 
     # Expose shared state

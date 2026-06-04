@@ -7,7 +7,9 @@ const backendHttp = process.env.VITE_BACKEND_HTTP || 'http://localhost:8001'
 const backendWs = process.env.VITE_BACKEND_WS || backendHttp.replace(/^http/, 'ws')
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  // Fast Refresh preamble has been flaky in this environment and can leave $RefreshSig$ undefined
+  // in the browser even though the app compiles. Disable it for a stable dev dashboard.
+  plugins: [react({ fastRefresh: false }), tailwindcss()],
 
   server: {
     proxy: {

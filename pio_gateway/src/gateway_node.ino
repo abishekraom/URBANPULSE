@@ -248,6 +248,14 @@ bool popIncomingPacket(SensorPacket &pkt) {
   return hasPacket;
 }
 
+uint32_t takeDroppedIncomingCount() {
+  portENTER_CRITICAL(&incomingMux);
+  uint32_t dropped = droppedIncoming;
+  droppedIncoming = 0;
+  portEXIT_CRITICAL(&incomingMux);
+  return dropped;
+}
+
 // ─── DATA LOGGING (CSV format to Serial) ──────────────
 void printDataCSV(SensorPacket &pkt) {
   // CSV format: timestamp, nodeId, mpuFreq, mpuAmp, mpuCentroid, mpuRMS, piezoFreq, piezoAmp, piezoCentroid, piezoRMS
@@ -405,17 +413,14 @@ void sampleOwnSensors() {
     wSum += f * a; tAmp += a; sSq += a * a;
   }
   pkt.piezoDominantFreq    = (maxIdx * 1.0 * PIEZO_SAMPLING_FREQ) / SAMPLES;
-  pkt.piezoPeakAmplitude   = maxAmp;
+  pkt.piezoPeakAmplitude   = maxAmp * 0.02;  // gateway piezo gain compensation: own channel idles much hotter than remote nodes
   pkt.piezoSpectralCentroid = tAmp > 0 ? wSum / tAmp : 0;
-  pkt.piezoRMS = sqrt(sSq / (SAMPLES/2));
+  pkt.piezoRMS = sqrt(sSq / (SAMPLES/2)) * 0.02;
 
   // Print own data
   printDataCSV(pkt);
 
-  // Check own thresholds
-  checkThresholds(pkt);
-  
-  // Send to server
+  // Send to server; backend response is the single source of truth for buzzer alerts.
   sendToServer(pkt);
 }
 
@@ -471,16 +476,14 @@ void loop() {
     processed++;
     if (queuedPkt.nodeId >= 1 && queuedPkt.nodeId <= 3) {
       printDataCSV(queuedPkt);
-      checkThresholds(queuedPkt);
+      // Let the backend classify normalized physical values and trigger buzzer via HTTP response.
+      // Local raw-FFT thresholding caused false CRITICAL buzzer events on idle packets.
       sendToServer(queuedPkt);
     }
   }
 
-  if (droppedIncoming > 0) {
-    portENTER_CRITICAL(&incomingMux);
-    uint32_t dropped = droppedIncoming;
-    droppedIncoming = 0;
-    portEXIT_CRITICAL(&incomingMux);
+  uint32_t dropped = takeDroppedIncomingCount();
+  if (dropped > 0) {
     Serial.printf("# [ESP-NOW] Dropped %lu packets (queue full)\n", dropped);
   }
   // Sample own sensors every 500ms

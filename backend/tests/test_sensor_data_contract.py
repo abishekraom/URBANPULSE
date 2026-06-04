@@ -1,10 +1,22 @@
+import os
+import tempfile
 import unittest
+from pathlib import Path
+
+_TEST_DB_DIR = tempfile.TemporaryDirectory()
+_TEST_DB_PATH = Path(_TEST_DB_DIR.name) / "sensor_contract_test.db"
+os.environ["URBANPULSE_DB_PATH"] = str(_TEST_DB_PATH)
+
 from fastapi.testclient import TestClient
 
+from db.connection import DB_PATH
 from main import app
 
 
 class SensorDataContractTest(unittest.TestCase):
+    def test_uses_isolated_test_database(self):
+        self.assertEqual(DB_PATH, _TEST_DB_PATH)
+
     def test_invalid_json_returns_400(self):
         with TestClient(app) as client:
             resp = client.post('/api/sensor-data', data='not-json', headers={'Content-Type': 'application/json'})

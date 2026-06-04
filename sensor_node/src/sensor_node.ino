@@ -18,6 +18,9 @@
 #include <Wire.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 #include "arduinoFFT.h"
 
 // ─── PIN DEFINITIONS ───────────────────────────────────
@@ -42,13 +45,15 @@
 #define NODE_ID        2
 #endif
 
-// ─── WIFI (connect for ESP-NOW channel sync with gateway) ──
-const char* SENSOR_WIFI_SSID     = "DaEL";
-const char* SENSOR_WIFI_PASSWORD="11228866";
+// ─── ESP-NOW RADIO CONFIG ──────────────────────────────
+// Gateway serial reports WiFi channel 6 on the current DaEL hotspot.
+// Sensor nodes stay routerless: forcing the ESP-NOW channel avoids WiFi.begin()
+// current spikes that brownout-reset weaker USB/battery-powered nodes.
+#define ESPNOW_CHANNEL 6
 
 // ─── GATEWAY MAC ADDRESS ──────────────────────────────
-// Gateway Node 1 MAC determined at runtime
-uint8_t gatewayMAC[] = {0xC0, 0xCD, 0xD6, 0x84, 0x87, 0x10};
+// Gateway Node 1 MAC. Verify from gateway serial/upload output before flashing sensors.
+uint8_t gatewayMAC[] = {0x6C, 0xC8, 0x40, 0x06, 0x1A, 0xB4};
 
 // ─── DATA STRUCTURES ──────────────────────────────────
 typedef struct SensorPacket {
@@ -219,6 +224,10 @@ void sampleAndProcessPiezo(SensorPacket &pkt) {
 
 // ─── SETUP ─────────────────────────────────────────────
 void setup() {
+  // Demo safeguard: Node 3's USB/power path is dipping during radio init.
+  // Disable the reset trigger so we can keep collecting data; if readings become unstable,
+  // fix power physically (shorter USB, stronger 5V, or remove overloaded wiring).
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
   Serial.begin(115200);
   delay(1000);
   Serial.printf("\n[UrbanPulse] Sensor Node %d starting...\n", NODE_ID);
@@ -231,29 +240,36 @@ void setup() {
   // Init MPU-6050
   initMPU6050();
 
-  // Init WiFi in station mode and connect (for ESP-NOW channel sync)
+  // Init WiFi radio in STA mode for ESP-NOW only.
+  // Do NOT call WiFi.begin() here: Node 3 brownout-reset during router association.
+  // ESP-NOW only needs the radio on the same channel as the gateway.
+  btStop();
   WiFi.mode(WIFI_STA);
-  WiFi.begin(SENSOR_WIFI_SSID, SENSOR_WIFI_PASSWORD);
-  Serial.printf("[WiFi] Connecting to %s", SENSOR_WIFI_SSID);
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 10) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
-  Serial.println(WiFi.status() == WL_CONNECTED ? " OK" : " FAIL");
-  Serial.printf("[WiFi] MAC: %s\n", WiFi.macAddress().c_str());
+  WiFi.disconnect(false, false);
+  WiFi.setSleep(false);
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);
+  esp_wifi_start();
+  esp_wifi_set_ps(WIFI_PS_NONE);
+  esp_wifi_set_promiscuous(true);
+  esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_promiscuous(false);
+  Serial.printf("[ESP-NOW] STA MAC: %s | target channel: %d\n", WiFi.macAddress().c_str(), ESPNOW_CHANNEL);
 
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
     Serial.println("[ESP-NOW] Init FAILED!");
     return;
   }
+  esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
+  uint8_t primaryChannel = 0;
+  wifi_second_chan_t secondChannel = WIFI_SECOND_CHAN_NONE;
+  esp_wifi_get_channel(&primaryChannel, &secondChannel);
+  Serial.printf("[ESP-NOW] Active channel: %u\n", primaryChannel);
   esp_now_register_send_cb(onDataSent);
 
   // Register gateway peer
   memcpy(peerInfo.peer_addr, gatewayMAC, 6);
-  peerInfo.channel = 0;
+  peerInfo.channel = 0; // use current radio channel; avoids ESP-NOW peer/home mismatch on routerless nodes
   peerInfo.encrypt = false;
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     Serial.println("[ESP-NOW] Failed to add gateway peer!");
@@ -290,7 +306,7 @@ void loop() {
   // Send via ESP-NOW
   esp_err_t result = esp_now_send(gatewayMAC, (uint8_t *)&pkt, sizeof(pkt));
   if (result != ESP_OK) {
-    Serial.println("[ESP-NOW] Send error");
+    Serial.printf("[ESP-NOW] Send error: %s (%d)\n", esp_err_to_name(result), result);
   }
 
   // Wait ~500ms between readings (adjust as needed)
