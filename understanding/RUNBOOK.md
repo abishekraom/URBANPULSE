@@ -47,7 +47,9 @@ boot_urbanpulse.bat
 
 What it does:
 
-- starts the FastAPI backend on `0.0.0.0:8001`
+- prepares a repo-local backend virtualenv at `.venv` if needed
+- installs backend dependencies from `backend/requirements.txt` into `.venv` when missing
+- starts the FastAPI backend on `0.0.0.0:8001` using `.venv`
 - starts the Vite frontend on `0.0.0.0:5173`
 - shows both services in a single live terminal dashboard
 - streams backend and frontend logs into separate visual panels
@@ -58,11 +60,12 @@ What it does:
 Prerequisites after a fresh clone:
 
 ```bash
-cd backend && python -m pip install -r requirements.txt
-cd ../frontend && npm install
+cd frontend && npm install
 cd ..
 python scripts/boot_urbanpulse.py
 ```
+
+The script handles the backend Python environment itself from project files (`.venv` + `backend/requirements.txt`).
 
 If you want to keep the browser closed:
 

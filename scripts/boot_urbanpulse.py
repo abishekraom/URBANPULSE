@@ -209,6 +209,83 @@ def command_exists(name: str) -> bool:
     return shutil.which(name) is not None
 
 
+def project_venv_python() -> Path:
+    if os.name == "nt":
+        return ROOT / ".venv" / "Scripts" / "python.exe"
+    return ROOT / ".venv" / "bin" / "python"
+
+
+def python_has_backend_deps(python_exe: str | Path) -> tuple[bool, str]:
+    check = "import fastapi, uvicorn, paho.mqtt.client; print('ok')"
+    try:
+        proc = subprocess.run(
+            [str(python_exe), "-c", check],
+            cwd=str(BACKEND_DIR),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=8,
+            check=False,
+        )
+    except Exception as exc:
+        return False, repr(exc)
+    if proc.returncode == 0:
+        return True, proc.stdout.strip()
+    return False, proc.stdout.strip()
+
+
+def run_setup_step(label: str, command: list[str], cwd: Path) -> None:
+    print(f"{CYAN}[setup]{RESET} {label}", flush=True)
+    print(f"{DIM}        {' '.join(command)}{RESET}", flush=True)
+    proc = subprocess.Popen(
+        command,
+        cwd=str(cwd),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+    )
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        print(f"{DIM}        {line.rstrip()}{RESET}", flush=True)
+    code = proc.wait()
+    if code != 0:
+        raise RuntimeError(f"setup step failed with code {code}: {label}")
+
+
+def ensure_project_backend_python() -> str:
+    """Use a repo-local Python environment for the backend.
+
+    The boot UI can be launched by any Python, including a global tool venv.
+    The backend must be reproducible from project files, so it runs from
+    ROOT/.venv and installs backend/requirements.txt there when needed.
+    """
+    venv_python = project_venv_python()
+    if not venv_python.exists():
+        run_setup_step(
+            "creating project backend virtualenv at .venv",
+            [sys.executable, "-m", "venv", str(ROOT / ".venv")],
+            ROOT,
+        )
+
+    ok, detail = python_has_backend_deps(venv_python)
+    if not ok:
+        req = BACKEND_DIR / "requirements.txt"
+        run_setup_step(
+            "installing backend dependencies from backend/requirements.txt",
+            [str(venv_python), "-m", "pip", "install", "-r", str(req)],
+            ROOT,
+        )
+
+    ok, detail = python_has_backend_deps(venv_python)
+    if not ok:
+        raise RuntimeError(
+            "project .venv still cannot import backend dependencies: "
+            + (detail.splitlines()[-1] if detail else "unknown error")
+        )
+    return str(venv_python)
+
+
 def check_prereqs() -> list[str]:
     missing = []
     if not BACKEND_DIR.exists():
@@ -329,10 +406,21 @@ def main() -> int:
         print(f"{RED}UrbanPulse boot cannot start: npm is not on PATH{RESET}")
         return 2
 
+    try:
+        backend_python = ensure_project_backend_python()
+    except Exception as exc:
+        print(f"{RED}UrbanPulse boot cannot prepare the project backend .venv:{RESET}")
+        print(f"  {exc}")
+        print("\nThis script uses repo-local .venv for the backend, not Miniconda or Hermes.")
+        print("Manual repair command:")
+        print("  python -m venv .venv")
+        print("  .venv\\Scripts\\python -m pip install -r backend\\requirements.txt")
+        return 2
+
     backend = Service(
         "backend",
         "FastAPI backend",
-        [sys.executable, "-m", "uvicorn", "main:app", "--host", args.host, "--port", str(args.backend_port)],
+        [backend_python, "-m", "uvicorn", "main:app", "--host", args.host, "--port", str(args.backend_port)],
         BACKEND_DIR,
         GREEN,
         log_dir / "backend.log",
