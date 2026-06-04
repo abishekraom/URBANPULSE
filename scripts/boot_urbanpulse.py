@@ -393,8 +393,8 @@ def main() -> int:
             elif time.time() - started > args.ready_timeout:
                 message = "boot is taking longer than expected; inspect logs below"
 
-            print(render(args, backend, frontend, started, log_dir, message, node_summary), end="", flush=True)
-            time.sleep(0.5)
+            print(render(args, backend, frontend, started, log_dir, message, node_summary), flush=True)
+            time.sleep(1.0)
 
             if backend.exit_code not in (None, 0) or frontend.exit_code not in (None, 0):
                 message = "a service exited; stopping boot console"
