@@ -31,12 +31,53 @@ In CMD or PowerShell, use normal Windows single-slash flags:
 taskkill /PID <PID> /F
 ```
 
-## Start backend
+## Visual one-command boot
+
+For day-to-day development and demos, use the visual boot console from the repo root:
+
+```bash
+python scripts/boot_urbanpulse.py
+```
+
+On Windows you can also run:
+
+```bat
+boot_urbanpulse.bat
+```
+
+What it does:
+
+- starts the FastAPI backend on `0.0.0.0:8001`
+- starts the Vite frontend on `0.0.0.0:5173`
+- shows both services in a single live terminal dashboard
+- streams backend and frontend logs into separate visual panels
+- writes full logs under `logs/boot_<timestamp>/`
+- opens `http://localhost:5173` automatically when both services are ready
+- stops both child processes cleanly on `Ctrl+C`
+
+Prerequisites after a fresh clone:
+
+```bash
+cd backend && python -m pip install -r requirements.txt
+cd ../frontend && npm install
+cd ..
+python scripts/boot_urbanpulse.py
+```
+
+If you want to keep the browser closed:
+
+```bash
+python scripts/boot_urbanpulse.py --no-open
+```
+
+The boot console refuses to start if ports `8001` or `5173` are already occupied. Stop old dev servers first, then run it again.
+
+## Manual backend start
 
 From `D:/URBANPULSE/backend`:
 
 ```bash
-python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+python -m uvicorn main:app --host 0.0.0.0 --port 8001
 ```
 
 Verify:
@@ -47,7 +88,7 @@ curl http://localhost:8001/api/health
 curl http://localhost:8001/api/config/thresholds
 ```
 
-## Start frontend
+## Manual frontend start
 
 From `D:/URBANPULSE/frontend`:
 
