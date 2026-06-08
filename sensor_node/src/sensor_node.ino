@@ -224,10 +224,12 @@ void sampleAndProcessPiezo(SensorPacket &pkt) {
 
 // ─── SETUP ─────────────────────────────────────────────
 void setup() {
+#if NODE_ID == 3
   // Demo safeguard: Node 3's USB/power path is dipping during radio init.
   // Disable the reset trigger so we can keep collecting data; if readings become unstable,
   // fix power physically (shorter USB, stronger 5V, or remove overloaded wiring).
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+#endif
   Serial.begin(115200);
   delay(1000);
   Serial.printf("\n[UrbanPulse] Sensor Node %d starting...\n", NODE_ID);
