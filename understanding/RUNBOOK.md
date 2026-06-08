@@ -17,18 +17,70 @@ If the dashboard/backend feels stale, first check ports:
 netstat -ano 2>/dev/null | grep -E ':(8001|5173) .*LISTENING' || true
 ```
 
-Kill stale PIDs only when you are sure they are old test/dev servers:
+Kill stale PIDs only when you are sure they are old test/dev servers.
+
+In Git Bash/MSYS, use doubled slashes so the shell does not rewrite `/PID` as a path:
 
 ```bash
 taskkill //PID <PID> //F
 ```
 
-## Start backend
+In CMD or PowerShell, use normal Windows single-slash flags:
+
+```bat
+taskkill /PID <PID> /F
+```
+
+## Visual one-command boot
+
+For day-to-day development and demos, use the visual boot console from the repo root:
+
+```bash
+python scripts/boot_urbanpulse.py
+```
+
+On Windows you can also run:
+
+```bat
+boot_urbanpulse.bat
+```
+
+What it does:
+
+- prepares a repo-local backend virtualenv at `.venv` if needed
+- installs backend dependencies from `backend/requirements.txt` into `.venv` when missing
+- starts the FastAPI backend on `0.0.0.0:8001` using `.venv`
+- starts the Vite frontend on `0.0.0.0:5173`
+- shows both services in a single live terminal dashboard
+- streams backend and frontend logs into separate visual panels
+- writes full logs under `logs/boot_<timestamp>/`
+- opens `http://localhost:5173` automatically when both services are ready
+- stops both child processes cleanly on `Ctrl+C`
+
+Prerequisites after a fresh clone:
+
+```bash
+cd frontend && npm install
+cd ..
+python scripts/boot_urbanpulse.py
+```
+
+The script handles the backend Python environment itself from project files (`.venv` + `backend/requirements.txt`).
+
+If you want to keep the browser closed:
+
+```bash
+python scripts/boot_urbanpulse.py --no-open
+```
+
+The boot console refuses to start if ports `8001` or `5173` are already occupied. Stop old dev servers first, then run it again.
+
+## Manual backend start
 
 From `D:/URBANPULSE/backend`:
 
 ```bash
-python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+python -m uvicorn main:app --host 0.0.0.0 --port 8001
 ```
 
 Verify:
@@ -39,7 +91,7 @@ curl http://localhost:8001/api/health
 curl http://localhost:8001/api/config/thresholds
 ```
 
-## Start frontend
+## Manual frontend start
 
 From `D:/URBANPULSE/frontend`:
 
@@ -126,34 +178,45 @@ Current verified state: **all pass**.
 
 ## Flashing firmware
 
-PlatformIO configs currently reference:
+Do not assume committed PlatformIO configs know your local COM ports. First inspect connected devices:
 
-- gateway upload port: `COM10`
-- sensor node2 upload port: `COM12`
-- sensor node3 upload port: `COM11`
+```bash
+pio device list
+# or
+python -m serial.tools.list_ports
+```
 
-Memory says laptop has ESP32 ports COM10/11/12. Confirm before flashing.
+Then flash with explicit local ports. Example placeholders:
 
 Gateway:
 
 ```bash
 cd D:/URBANPULSE/pio_gateway
-pio run -t upload
+pio run -t upload --upload-port <GATEWAY_PORT>
 ```
 
 Node 2:
 
 ```bash
 cd D:/URBANPULSE/sensor_node
-pio run -e node2 -t upload
+pio run -e node2 -t upload --upload-port <NODE2_PORT>
 ```
 
 Node 3:
 
 ```bash
 cd D:/URBANPULSE/sensor_node
-pio run -e node3 -t upload
+pio run -e node3 -t upload --upload-port <NODE3_PORT>
 ```
+
+For the current operator laptop, the ports have previously been `COM10`/`COM12`/`COM11`, but always verify before flashing.
+
+Current hardware-stability notes from live validation:
+
+- Sensor nodes run ESP-NOW directly on gateway WiFi channel 6 instead of joining the router. This avoids `WiFi.begin()` current spikes that brownout-reset weakly powered ESP32 nodes.
+- If serial shows `Brownout detector was triggered` immediately after `[MPU] Initialized`, suspect USB/power sag first. Firmware contains a demo safeguard that disables brownout reset, but the physical fix is still better power: shorter/data-capable USB cable, stable 5V, fewer loads on the node rail.
+- Gateway buzzer alerts should come from the backend HTTP response only. Local raw-FFT thresholding on the gateway can false-trigger because firmware FFT amplitudes are not the same units as backend-normalized physical values.
+- Gateway's own piezo channel is gain-compensated in firmware because it idles much hotter than the remote nodes; Node 2/3 are the cleaner fault-sensing channels for the demo.
 
 ## HTTP smoke packet
 

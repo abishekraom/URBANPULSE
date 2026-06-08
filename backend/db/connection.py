@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import logging
 from contextlib import contextmanager
@@ -5,7 +6,7 @@ from pathlib import Path
 
 logger = logging.getLogger("urbanpulse.db")
 
-DB_PATH = Path(__file__).parent.parent / "urbanpulse.db"
+DB_PATH = Path(os.environ.get("URBANPULSE_DB_PATH", Path(__file__).parent.parent / "urbanpulse.db"))
 
 def setup_db():
     with get_db() as conn:
