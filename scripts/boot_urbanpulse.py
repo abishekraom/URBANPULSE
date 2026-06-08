@@ -93,10 +93,14 @@ class Service:
     def _write_internal(self, line: str) -> None:
         stamped = f"[{now_clock()}] {line}"
         self.lines.append(stamped)
-        if self._log_file:
-            self._log_file.write(stamped + "\n")
-            self._log_file.flush()
-
+        log_file = self._log_file
+        if log_file:
+            try:
+                log_file.write(stamped + "\n")
+                log_file.flush()
+            except (ValueError, OSError):
+                # Log file may have been closed during shutdown; disable further writes.
+                self._log_file = None
     def _read_loop(self) -> None:
         assert self.process is not None
         assert self.process.stdout is not None
